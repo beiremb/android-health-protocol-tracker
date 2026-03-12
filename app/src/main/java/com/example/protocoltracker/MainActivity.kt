@@ -11,7 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ProtocolTrackerTheme {
-                ProtocolTrackerApp()
+                ProtocolTrackerRoot()
             }
         }
     }
@@ -53,7 +53,7 @@ sealed class AppScreen(
 }
 
 @Composable
-fun ProtocolTrackerApp() {
+fun ProtocolTrackerRoot() {
     val navController = rememberNavController()
 
     val screens = listOf(
@@ -74,7 +74,7 @@ fun ProtocolTrackerApp() {
                     val icon = when (screen) {
                         AppScreen.Home -> Icons.Filled.Home
                         AppScreen.Log -> Icons.AutoMirrored.Filled.List
-                        AppScreen.Progress -> Icons.Filled.ShowChart
+                        AppScreen.Progress -> Icons.AutoMirrored.Filled.ShowChart
                         AppScreen.Settings -> Icons.Filled.Settings
                     }
 
