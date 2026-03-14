@@ -31,6 +31,7 @@ import com.example.protocoltracker.ui.theme.ProtocolTrackerTheme
 import com.example.protocoltracker.ui.log.LogScreen
 import com.example.protocoltracker.ui.home.HomeScreen
 import com.example.protocoltracker.ui.progress.ProgressScreen
+import com.example.protocoltracker.ui.settings.SettingsScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -125,7 +126,7 @@ fun ProtocolTrackerRoot() {
                 ProgressScreen()
             }
             composable(AppScreen.Settings.route) {
-                PlaceholderScreen(title = "Settings")
+                SettingsScreen()
             }
         }
     }

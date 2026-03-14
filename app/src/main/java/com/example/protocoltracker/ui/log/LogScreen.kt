@@ -2,16 +2,11 @@ package com.example.protocoltracker.ui.log
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -31,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.example.protocoltracker.ProtocolTrackerApp
 import com.example.protocoltracker.data.local.entity.DailyStepsEntry
 import com.example.protocoltracker.data.local.entity.FoodDrinkEntry
@@ -41,10 +35,12 @@ import com.example.protocoltracker.data.local.entity.WeightEntry
 import com.example.protocoltracker.data.local.entity.WorkoutEntry
 import com.example.protocoltracker.data.local.entity.WorkoutIntensity
 import com.example.protocoltracker.data.local.entity.WorkoutType
+import com.example.protocoltracker.ui.common.ActionCardButton
+import com.example.protocoltracker.ui.common.AppDialogCard
+import com.example.protocoltracker.ui.common.AppPageTitle
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
-import androidx.compose.foundation.layout.ColumnScope
 
 private enum class LogPanel {
     WEIGHT,
@@ -106,10 +102,8 @@ fun LogScreen() {
 
     var activePanel by remember { mutableStateOf<LogPanel?>(null) }
 
-    // Consumption
     var entryDate by rememberSaveable { mutableStateOf(today) }
     var timeSlot by rememberSaveable { mutableStateOf(defaultTimeSlot()) }
-    var entryType by rememberSaveable { mutableStateOf(FoodDrinkType.MEAL.name) }
     var name by rememberSaveable { mutableStateOf("") }
     var calories by rememberSaveable { mutableStateOf("") }
     var proteinGrams by rememberSaveable { mutableStateOf("") }
@@ -117,7 +111,6 @@ fun LogScreen() {
     var timeMenuExpanded by remember { mutableStateOf(false) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
-    // Workout
     var workoutDate by rememberSaveable { mutableStateOf(today) }
     var workoutType by rememberSaveable { mutableStateOf(WorkoutType.STRENGTH.name) }
     var workoutIntensity by rememberSaveable { mutableStateOf(WorkoutIntensity.MID.name) }
@@ -126,17 +119,14 @@ fun LogScreen() {
     var workoutIntensityMenuExpanded by remember { mutableStateOf(false) }
     var workoutErrorText by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Weight
     var weightDate by rememberSaveable { mutableStateOf(today) }
     var weightKg by rememberSaveable { mutableStateOf("") }
     var weightErrorText by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Waist
     var waistDate by rememberSaveable { mutableStateOf(today) }
     var waistCm by rememberSaveable { mutableStateOf("") }
     var waistErrorText by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Steps
     var stepsDate by rememberSaveable { mutableStateOf(today) }
     var stepsValue by rememberSaveable { mutableStateOf("") }
     var stepsErrorText by rememberSaveable { mutableStateOf<String?>(null) }
@@ -167,27 +157,31 @@ fun LogScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = "Log",
-            style = MaterialTheme.typography.headlineSmall
+        AppPageTitle(
+            title = "Log",
+            subtitle = "Tap a category to add a new entry."
         )
 
-        LogActionBar("Weight") { activePanel = LogPanel.WEIGHT }
-        LogActionBar("Food") {
-            entryType = FoodDrinkType.MEAL.name
-            activePanel = LogPanel.FOOD
-        }
-        LogActionBar("Drink") {
-            entryType = FoodDrinkType.DRINK.name
-            activePanel = LogPanel.DRINK
-        }
-        LogActionBar("Waist") { activePanel = LogPanel.WAIST }
-        LogActionBar("Steps") { activePanel = LogPanel.STEPS }
-        LogActionBar("Workout") { activePanel = LogPanel.WORKOUT }
+        ActionCardButton("Weight") { activePanel = LogPanel.WEIGHT }
+        ActionCardButton("Food") { activePanel = LogPanel.FOOD }
+        ActionCardButton("Drink") { activePanel = LogPanel.DRINK }
+        ActionCardButton("Waist") { activePanel = LogPanel.WAIST }
+        ActionCardButton("Steps") { activePanel = LogPanel.STEPS }
+        ActionCardButton("Workout") { activePanel = LogPanel.WORKOUT }
     }
 
     if (activePanel == LogPanel.FOOD || activePanel == LogPanel.DRINK) {
-        SimpleDialog(
+        var selectedEntryType by rememberSaveable(activePanel) {
+            mutableStateOf(
+                if (activePanel == LogPanel.DRINK) {
+                    FoodDrinkType.DRINK.name
+                } else {
+                    FoodDrinkType.MEAL.name
+                }
+            )
+        }
+
+        AppDialogCard(
             title = "Log your food or drink",
             onDismiss = { activePanel = null }
         ) {
@@ -197,7 +191,7 @@ fun LogScreen() {
                         onClick = { typeMenuExpanded = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Type: ${FoodDrinkType.valueOf(entryType).label()}")
+                        Text("Type: ${FoodDrinkType.valueOf(selectedEntryType).label()}")
                     }
 
                     DropdownMenu(
@@ -208,7 +202,7 @@ fun LogScreen() {
                             DropdownMenuItem(
                                 text = { Text(type.label()) },
                                 onClick = {
-                                    entryType = type.name
+                                    selectedEntryType = type.name
                                     typeMenuExpanded = false
                                 }
                             )
@@ -296,7 +290,7 @@ fun LogScreen() {
                                         FoodDrinkEntry(
                                             entryDate = entryDate,
                                             timeSlot = timeSlot,
-                                            entryType = FoodDrinkType.valueOf(entryType),
+                                            entryType = FoodDrinkType.valueOf(selectedEntryType),
                                             name = trimmedName,
                                             calories = calorieValue,
                                             proteinGrams = proteinValue,
@@ -333,7 +327,7 @@ fun LogScreen() {
     }
 
     if (activePanel == LogPanel.WORKOUT) {
-        SimpleDialog(
+        AppDialogCard(
             title = "Log your workout",
             onDismiss = { activePanel = null }
         ) {
@@ -452,7 +446,7 @@ fun LogScreen() {
     }
 
     if (activePanel == LogPanel.WEIGHT) {
-        SimpleDialog(
+        AppDialogCard(
             title = "Log your weight",
             onDismiss = { activePanel = null }
         ) {
@@ -522,7 +516,7 @@ fun LogScreen() {
     }
 
     if (activePanel == LogPanel.WAIST) {
-        SimpleDialog(
+        AppDialogCard(
             title = "Log your waist",
             onDismiss = { activePanel = null }
         ) {
@@ -591,7 +585,7 @@ fun LogScreen() {
     }
 
     if (activePanel == LogPanel.STEPS) {
-        SimpleDialog(
+        AppDialogCard(
             title = "Log your steps",
             onDismiss = { activePanel = null }
         ) {
@@ -659,59 +653,8 @@ fun LogScreen() {
 }
 
 @Composable
-private fun ColumnScope.LogActionBar(
-    label: String,
-    onClick: () -> Unit
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 18.dp)
-    ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun SimpleDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge
-                )
-                content()
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Close")
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun FoodEntryRow(entry: FoodDrinkEntry) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -726,7 +669,7 @@ private fun FoodEntryRow(entry: FoodDrinkEntry) {
 
 @Composable
 private fun WorkoutEntryRow(entry: WorkoutEntry) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -740,7 +683,7 @@ private fun WorkoutEntryRow(entry: WorkoutEntry) {
 
 @Composable
 private fun WeightEntryRow(entry: WeightEntry) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -753,7 +696,7 @@ private fun WeightEntryRow(entry: WeightEntry) {
 
 @Composable
 private fun WaistEntryRow(entry: WaistEntry) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
