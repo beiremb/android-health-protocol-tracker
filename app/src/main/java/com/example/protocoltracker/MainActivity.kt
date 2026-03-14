@@ -30,6 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.protocoltracker.ui.theme.ProtocolTrackerTheme
 import com.example.protocoltracker.ui.log.LogScreen
 import com.example.protocoltracker.ui.home.HomeScreen
+import com.example.protocoltracker.ui.progress.ProgressScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -121,7 +122,7 @@ fun ProtocolTrackerRoot() {
                 LogScreen()
             }
             composable(AppScreen.Progress.route) {
-                PlaceholderScreen(title = "Progress")
+                ProgressScreen()
             }
             composable(AppScreen.Settings.route) {
                 PlaceholderScreen(title = "Settings")
