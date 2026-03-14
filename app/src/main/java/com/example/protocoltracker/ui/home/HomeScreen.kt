@@ -2,39 +2,31 @@ package com.example.protocoltracker.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Modifier
 import com.example.protocoltracker.ProtocolTrackerApp
-import com.example.protocoltracker.domain.metrics.DailyMetrics
 import com.example.protocoltracker.domain.metrics.MetricChange
 import com.example.protocoltracker.domain.metrics.MetricsCalculator
 import com.example.protocoltracker.domain.metrics.TrendDirection
-import com.example.protocoltracker.domain.metrics.WeeklyMetrics
+import com.example.protocoltracker.ui.common.AppPageTitle
+import com.example.protocoltracker.ui.common.CompactMetricCard
+import com.example.protocoltracker.ui.common.QuickAddFab
+import com.example.protocoltracker.ui.common.SectionCard
 import java.time.LocalDate
-import java.time.LocalTime
 import java.util.Locale
-
-private enum class DashboardMode {
-    DAILY,
-    WEEKLY
-}
 
 @Composable
 fun HomeScreen(
@@ -42,30 +34,17 @@ fun HomeScreen(
 ) {
     val app = LocalContext.current.applicationContext as ProtocolTrackerApp
     val repository = app.repository
+
     val today = LocalDate.now()
     val todayString = today.toString()
     val currentWeekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1L)
     val previousWeekStart = currentWeekStart.minusDays(7)
 
-    val foodEntries by remember {
-        repository.observeFoodDrinkEntries()
-    }.collectAsState(initial = emptyList())
-
-    val workoutEntries by remember {
-        repository.observeWorkoutEntries()
-    }.collectAsState(initial = emptyList())
-
-    val weightEntries by remember {
-        repository.observeWeightEntries()
-    }.collectAsState(initial = emptyList())
-
-    val waistEntries by remember {
-        repository.observeWaistEntries()
-    }.collectAsState(initial = emptyList())
-
-    val stepsEntries by remember {
-        repository.observeDailySteps()
-    }.collectAsState(initial = emptyList())
+    val foodEntries by remember { repository.observeFoodDrinkEntries() }.collectAsState(initial = emptyList())
+    val workoutEntries by remember { repository.observeWorkoutEntries() }.collectAsState(initial = emptyList())
+    val weightEntries by remember { repository.observeWeightEntries() }.collectAsState(initial = emptyList())
+    val waistEntries by remember { repository.observeWaistEntries() }.collectAsState(initial = emptyList())
+    val stepsEntries by remember { repository.observeDailySteps() }.collectAsState(initial = emptyList())
 
     val dailyMetrics = remember(
         todayString,
@@ -132,216 +111,139 @@ fun HomeScreen(
         MetricsCalculator.calculateCurrentFastingHours(foodEntries)
     }
 
-    val latestWeightTodayExists = weightEntries.any { it.entryDate == todayString }
-    val latestWaistTodayExists = waistEntries.any { it.entryDate == todayString }
-    val isSunday = today.dayOfWeek.value == 7
-    val inEatingWindow = LocalTime.now() >= LocalTime.of(13, 0) &&
-            LocalTime.now() <= LocalTime.of(21, 0)
-
-    var mode = DashboardMode.DAILY
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text(
-                text = "Home",
-                style = MaterialTheme.typography.headlineSmall
-            )
+    val missingItems = remember(todayString, weightEntries, waistEntries, today.dayOfWeek.value) {
+        buildList {
+            if (weightEntries.none { it.entryDate == todayString }) add("weight")
+            if (today.dayOfWeek.value == 7 && waistEntries.none { it.entryDate == todayString }) add("waist")
         }
+    }
 
-        item {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        floatingActionButton = {
+            QuickAddFab(onClick = onOpenLog)
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            AppPageTitle(
+                title = "Home",
+                subtitle = "Your main numbers for today and this week."
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                val dailySelected = mode == DashboardMode.DAILY
-                val weeklySelected = mode == DashboardMode.WEEKLY
-
-                Button(
-                    onClick = { mode = DashboardMode.DAILY },
-                    modifier = Modifier.weight(1f),
-                    enabled = !dailySelected
-                ) {
-                    Text("Daily")
-                }
-
-                Button(
-                    onClick = { mode = DashboardMode.WEEKLY },
-                    modifier = Modifier.weight(1f),
-                    enabled = !weeklySelected
-                ) {
-                    Text("Weekly")
-                }
-            }
-        }
-
-        if (mode == DashboardMode.DAILY) {
-            item { MetricCard("Weight", dailyWeightText(dailyMetrics)) }
-            item { MetricCard("Calories", "${dailyMetrics.totalCalories}") }
-            item { MetricCard("Waist", dailyWaistText(dailyMetrics)) }
-            item { MetricCard("Steps", "${dailyMetrics.steps}") }
-            item { MetricCard("Hours fasted", formatDouble(currentFastingHours)) }
-            item { MetricCard("Workout minutes", "${dailyMetrics.workoutMinutes}") }
-        } else {
-            item {
-                WeeklyMetricCard(
+                CompactMetricCard(
                     title = "Weight",
-                    value = weeklyWeightText(weeklyMetrics),
-                    change = changes.weight
+                    primary = dailyMetrics.latestWeightKg?.let { "${formatNumber(it)} kg" } ?: "—",
+                    secondary = weeklyMetrics.averageWeightKg?.let { "Week avg ${formatNumber(it)} kg" } ?: "No week avg",
+                    delta = formatDelta(changes.weight),
+                    deltaColor = deltaColor(changes.weight),
+                    modifier = Modifier.weight(1f)
                 )
-            }
-            item {
-                WeeklyMetricCard(
-                    title = "Calories",
-                    value = formatDouble(weeklyMetrics.averageDailyCalories),
-                    change = changes.calories
-                )
-            }
-            item {
-                WeeklyMetricCard(
+
+                CompactMetricCard(
                     title = "Waist",
-                    value = weeklyWaistText(weeklyMetrics),
-                    change = changes.waist
+                    primary = dailyMetrics.latestWaistCm?.let { "${formatNumber(it)} cm" } ?: "—",
+                    secondary = "Weekly measure",
+                    delta = formatDelta(changes.waist),
+                    deltaColor = deltaColor(changes.waist),
+                    modifier = Modifier.weight(1f)
                 )
             }
-            item {
-                WeeklyMetricCard(
-                    title = "Steps",
-                    value = formatDouble(weeklyMetrics.averageDailySteps),
-                    change = changes.steps
-                )
-            }
-            item {
-                WeeklyMetricCard(
-                    title = "Hours fasted",
-                    value = formatDouble(weeklyMetrics.averageDailyFastingHours),
-                    change = changes.fastingHours
-                )
-            }
-            item {
-                WeeklyMetricCard(
-                    title = "Workout minutes",
-                    value = "${weeklyMetrics.totalWorkoutMinutes}",
-                    change = changes.workoutMinutes
-                )
-            }
-        }
 
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Status", style = MaterialTheme.typography.titleMedium)
-                    Text("Eating window: 13:00–21:00")
-                    Text(if (inEatingWindow) "Current state: EATING WINDOW" else "Current state: FASTING")
-                }
-            }
-        }
-
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Due today", style = MaterialTheme.typography.titleMedium)
-                    if (!latestWeightTodayExists) {
-                        Text("• Weight missing")
-                    }
-                    if (isSunday && !latestWaistTodayExists) {
-                        Text("• Waist missing")
-                    }
-                    if (latestWeightTodayExists && (!isSunday || latestWaistTodayExists)) {
-                        Text("Nothing due")
-                    }
-                }
-            }
-        }
-
-        item {
-            OutlinedButton(
-                onClick = onOpenLog,
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Open log")
+                CompactMetricCard(
+                    title = "Calories",
+                    primary = "${dailyMetrics.totalCalories}",
+                    secondary = "Week avg ${formatNumber(weeklyMetrics.averageDailyCalories)}",
+                    delta = formatDelta(changes.calories),
+                    deltaColor = deltaColor(changes.calories),
+                    modifier = Modifier.weight(1f)
+                )
+
+                CompactMetricCard(
+                    title = "Hours fasted",
+                    primary = formatHours(currentFastingHours),
+                    secondary = "Week avg ${formatHours(weeklyMetrics.averageDailyFastingHours)}",
+                    delta = formatDelta(changes.fastingHours),
+                    deltaColor = deltaColor(changes.fastingHours),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                CompactMetricCard(
+                    title = "Steps",
+                    primary = formatWholeNumber(dailyMetrics.steps),
+                    secondary = "Week avg ${formatWholeNumber(weeklyMetrics.averageDailySteps.toInt())}",
+                    delta = formatDelta(changes.steps),
+                    deltaColor = deltaColor(changes.steps),
+                    modifier = Modifier.weight(1f)
+                )
+
+                CompactMetricCard(
+                    title = "Workout",
+                    primary = "${dailyMetrics.workoutMinutes} min",
+                    secondary = "Week total ${weeklyMetrics.totalWorkoutMinutes} min",
+                    delta = formatDelta(changes.workoutMinutes),
+                    deltaColor = deltaColor(changes.workoutMinutes),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            if (missingItems.isNotEmpty()) {
+                SectionCard(
+                    title = "Due today"
+                ) {
+                    Text(
+                        text = "Still missing: ${missingItems.joinToString(", ")}.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
         }
     }
 }
 
-@Composable
-private fun MetricCard(
-    title: String,
-    value: String
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(value, style = MaterialTheme.typography.headlineSmall)
-        }
+private fun formatNumber(value: Double): String =
+    String.format(Locale.US, "%.1f", value)
+
+private fun formatWholeNumber(value: Int): String =
+    String.format(Locale.US, "%d", value)
+
+private fun formatHours(value: Double): String =
+    "${formatNumber(value)} h"
+
+private fun formatDelta(change: MetricChange): String? {
+    val delta = change.delta ?: return null
+    if (delta == 0.0) return "0.0"
+
+    return when (change.direction) {
+        TrendDirection.BETTER -> "↑ ${formatNumber(kotlin.math.abs(delta))}"
+        TrendDirection.WORSE -> "↓ ${formatNumber(kotlin.math.abs(delta))}"
+        TrendDirection.SAME -> "0.0"
+        TrendDirection.NONE -> null
     }
 }
 
-@Composable
-private fun WeeklyMetricCard(
-    title: String,
-    value: String,
-    change: MetricChange
-) {
-    val changeText = when (val delta = change.delta) {
-        null -> "No previous week"
-        0.0 -> "No change"
-        else -> formatSignedDouble(delta)
-    }
-
-    val changeColor = when (change.direction) {
+private fun deltaColor(change: MetricChange): Color? =
+    when (change.direction) {
         TrendDirection.BETTER -> Color(0xFF2E7D32)
         TrendDirection.WORSE -> Color(0xFFC62828)
         TrendDirection.SAME,
-        TrendDirection.NONE -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(value, style = MaterialTheme.typography.headlineSmall)
-            Text(
-                text = changeText,
-                color = changeColor
-            )
-        }
-    }
-}
-
-private fun dailyWeightText(metrics: DailyMetrics): String =
-    metrics.latestWeightKg?.let { formatDouble(it) } ?: "Not logged"
-
-private fun dailyWaistText(metrics: DailyMetrics): String =
-    metrics.latestWaistCm?.let { formatDouble(it) } ?: "Not logged"
-
-private fun weeklyWeightText(metrics: WeeklyMetrics): String =
-    metrics.averageWeightKg?.let { formatDouble(it) } ?: "No data"
-
-private fun weeklyWaistText(metrics: WeeklyMetrics): String =
-    metrics.latestWaistCm?.let { formatDouble(it) } ?: "No data"
-
-private fun formatDouble(value: Double): String =
-    String.format(Locale.US, "%.1f", value)
-
-private fun formatSignedDouble(value: Double): String =
-    if (value > 0) {
-        String.format(Locale.US, "+%.1f", value)
-    } else {
-        String.format(Locale.US, "%.1f", value)
+        TrendDirection.NONE -> null
     }
