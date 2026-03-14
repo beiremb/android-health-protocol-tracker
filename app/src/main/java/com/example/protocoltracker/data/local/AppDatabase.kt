@@ -28,7 +28,7 @@ import com.example.protocoltracker.data.local.entity.WorkoutEntry
         DailyStepsEntry::class,
         MilestoneEntry::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(AppTypeConverters::class)
@@ -51,7 +51,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "protocol_tracker.db"
-                ).build()
+                ).fallbackToDestructiveMigration(true).build()
                 INSTANCE = instance
                 instance
             }

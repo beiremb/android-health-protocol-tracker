@@ -7,8 +7,7 @@ import androidx.room.PrimaryKey
 enum class FoodDrinkType {
     MEAL,
     SNACK,
-    ALCOHOL,
-    OTHER
+    DRINK
 }
 
 @Entity(
@@ -27,6 +26,5 @@ data class FoodDrinkEntry(
     val name: String,
     val calories: Int,
     val proteinGrams: Int? = null,
-    val regret: Boolean = false,
     val templateId: Long? = null
 )

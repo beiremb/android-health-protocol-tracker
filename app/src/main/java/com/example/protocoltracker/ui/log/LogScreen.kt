@@ -3,15 +3,13 @@ package com.example.protocoltracker.ui.log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -31,33 +29,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.text.KeyboardOptions
 import com.example.protocoltracker.ProtocolTrackerApp
+import com.example.protocoltracker.data.local.entity.DailyStepsEntry
 import com.example.protocoltracker.data.local.entity.FoodDrinkEntry
 import com.example.protocoltracker.data.local.entity.FoodDrinkType
+import com.example.protocoltracker.data.local.entity.WaistEntry
+import com.example.protocoltracker.data.local.entity.WeightEntry
+import com.example.protocoltracker.data.local.entity.WorkoutEntry
+import com.example.protocoltracker.data.local.entity.WorkoutIntensity
+import com.example.protocoltracker.data.local.entity.WorkoutType
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
-
-private data class QuickTemplate(
-    val label: String,
-    val type: FoodDrinkType,
-    val name: String,
-    val calories: Int,
-    val proteinGrams: Int? = null
-)
-
-private val quickTemplates = listOf(
-    QuickTemplate("Meal", FoodDrinkType.MEAL, "Meal", 600, 40),
-    QuickTemplate("Snack", FoodDrinkType.SNACK, "Snack", 250, 20),
-    QuickTemplate("Alcohol", FoodDrinkType.ALCOHOL, "Alcohol", 200, null),
-    QuickTemplate("Other", FoodDrinkType.OTHER, "Other", 120, null)
-)
 
 private fun allTimeSlots(): List<String> =
     (0..23).flatMap { hour ->
         listOf("%02d:00".format(hour), "%02d:30".format(hour))
     }
+
+private fun currentTime(): String {
+    val now = LocalTime.now()
+    return "%02d:%02d".format(now.hour, now.minute)
+}
 
 private fun defaultTimeSlot(): String {
     val now = LocalTime.now()
@@ -69,8 +62,26 @@ private fun FoodDrinkType.label(): String =
     when (this) {
         FoodDrinkType.MEAL -> "Meal"
         FoodDrinkType.SNACK -> "Snack"
-        FoodDrinkType.ALCOHOL -> "Alcohol"
-        FoodDrinkType.OTHER -> "Other"
+        FoodDrinkType.DRINK -> "Drink"
+    }
+
+private fun WorkoutType.label(): String =
+    when (this) {
+        WorkoutType.STRENGTH -> "Strength"
+        WorkoutType.WALKING -> "Walking"
+        WorkoutType.KUNG_FU -> "Kung fu"
+        WorkoutType.CYCLING -> "Cycling"
+        WorkoutType.RUNNING -> "Running"
+        WorkoutType.RECOVERY -> "Recovery"
+        WorkoutType.TENNIS -> "Tennis"
+        WorkoutType.OTHER -> "Other"
+    }
+
+private fun WorkoutIntensity.label(): String =
+    when (this) {
+        WorkoutIntensity.LOW -> "Low"
+        WorkoutIntensity.MID -> "Mid"
+        WorkoutIntensity.HIGH -> "High"
     }
 
 @Composable
@@ -79,24 +90,66 @@ fun LogScreen() {
     val repository = app.repository
     val scope = rememberCoroutineScope()
 
-    var entryDate by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    val today = LocalDate.now().toString()
+
+    // Consumption form
+    var entryDate by rememberSaveable { mutableStateOf(today) }
     var timeSlot by rememberSaveable { mutableStateOf(defaultTimeSlot()) }
     var entryType by rememberSaveable { mutableStateOf(FoodDrinkType.MEAL.name) }
     var name by rememberSaveable { mutableStateOf("") }
     var calories by rememberSaveable { mutableStateOf("") }
     var proteinGrams by rememberSaveable { mutableStateOf("") }
-    var regret by rememberSaveable { mutableStateOf(false) }
-    var errorText by rememberSaveable { mutableStateOf<String?>(null) }
-
+    var consumptionErrorText by rememberSaveable { mutableStateOf<String?>(null) }
     var timeMenuExpanded by remember { mutableStateOf(false) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
-    val entriesFlow = remember(entryDate) {
-        repository.observeFoodDrinkEntriesByDate(entryDate)
-    }
-    val entries by entriesFlow.collectAsState(initial = emptyList())
+    // Workout form
+    var workoutDate by rememberSaveable { mutableStateOf(today) }
+    var workoutType by rememberSaveable { mutableStateOf(WorkoutType.STRENGTH.name) }
+    var workoutIntensity by rememberSaveable { mutableStateOf(WorkoutIntensity.MID.name) }
+    var workoutMinutes by rememberSaveable { mutableStateOf("") }
+    var workoutTypeMenuExpanded by remember { mutableStateOf(false) }
+    var workoutIntensityMenuExpanded by remember { mutableStateOf(false) }
+    var workoutErrorText by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val totalCalories = entries.sumOf { it.calories }
+    // Weight form
+    var weightDate by rememberSaveable { mutableStateOf(today) }
+    var weightTime by rememberSaveable { mutableStateOf(currentTime()) }
+    var weightKg by rememberSaveable { mutableStateOf("") }
+    var weightErrorText by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Waist form
+    var waistDate by rememberSaveable { mutableStateOf(today) }
+    var waistCm by rememberSaveable { mutableStateOf("") }
+    var waistErrorText by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Steps form
+    var stepsDate by rememberSaveable { mutableStateOf(today) }
+    var stepsValue by rememberSaveable { mutableStateOf("") }
+    var stepsErrorText by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val foodEntries by remember(entryDate) {
+        repository.observeFoodDrinkEntriesByDate(entryDate)
+    }.collectAsState(initial = emptyList())
+
+    val workoutEntries by remember(workoutDate) {
+        repository.observeWorkoutEntriesByDate(workoutDate)
+    }.collectAsState(initial = emptyList())
+
+    val weightEntries by remember(weightDate) {
+        repository.observeWeightEntriesByDate(weightDate)
+    }.collectAsState(initial = emptyList())
+
+    val waistEntries by remember(waistDate) {
+        repository.observeWaistEntriesByDate(waistDate)
+    }.collectAsState(initial = emptyList())
+
+    val stepsEntry by remember(stepsDate) {
+        repository.observeDailyStepsByDate(stepsDate)
+    }.collectAsState(initial = null)
+
+    val totalCalories = foodEntries.sumOf { it.calories }
+    val totalWorkoutMinutes = workoutEntries.sumOf { it.minutes }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -105,7 +158,7 @@ fun LogScreen() {
     ) {
         item {
             Text(
-                text = "Food / Drink Log",
+                text = "Log",
                 style = MaterialTheme.typography.headlineSmall
             )
         }
@@ -116,68 +169,37 @@ fun LogScreen() {
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Quick fill",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text("Log your consumption", style = MaterialTheme.typography.titleMedium)
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        quickTemplates.take(2).forEach { template ->
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    entryType = template.type.name
-                                    name = template.name
-                                    calories = template.calories.toString()
-                                    proteinGrams = template.proteinGrams?.toString() ?: ""
-                                }
-                            ) {
-                                Text(template.label)
+                    Column {
+                        OutlinedButton(
+                            onClick = { typeMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Type: ${FoodDrinkType.valueOf(entryType).label()}")
+                        }
+
+                        DropdownMenu(
+                            expanded = typeMenuExpanded,
+                            onDismissRequest = { typeMenuExpanded = false }
+                        ) {
+                            FoodDrinkType.entries.forEach { type ->
+                                DropdownMenuItem(
+                                    text = { Text(type.label()) },
+                                    onClick = {
+                                        entryType = type.name
+                                        typeMenuExpanded = false
+                                    }
+                                )
                             }
                         }
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        quickTemplates.drop(2).forEach { template ->
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    entryType = template.type.name
-                                    name = template.name
-                                    calories = template.calories.toString()
-                                    proteinGrams = template.proteinGrams?.toString() ?: ""
-                                }
-                            ) {
-                                Text(template.label)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "Add entry",
-                        style = MaterialTheme.typography.titleMedium
-                    )
 
                     OutlinedTextField(
                         value = entryDate,
                         onValueChange = { entryDate = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Date (yyyy-MM-dd)") },
+                        label = { Text("Date (yyyy-mm-dd)") },
                         singleLine = true
                     )
 
@@ -199,30 +221,6 @@ fun LogScreen() {
                                     onClick = {
                                         timeSlot = slot
                                         timeMenuExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Column {
-                        OutlinedButton(
-                            onClick = { typeMenuExpanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Type: ${FoodDrinkType.valueOf(entryType).label()}")
-                        }
-
-                        DropdownMenu(
-                            expanded = typeMenuExpanded,
-                            onDismissRequest = { typeMenuExpanded = false }
-                        ) {
-                            FoodDrinkType.entries.forEach { type ->
-                                DropdownMenuItem(
-                                    text = { Text(type.label()) },
-                                    onClick = {
-                                        entryType = type.name
-                                        typeMenuExpanded = false
                                     }
                                 )
                             }
@@ -255,25 +253,8 @@ fun LogScreen() {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start
-                    ) {
-                        Checkbox(
-                            checked = regret,
-                            onCheckedChange = { regret = it }
-                        )
-                        Text(
-                            text = "Regret?",
-                            modifier = Modifier.padding(top = 14.dp)
-                        )
-                    }
-
-                    errorText?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                    consumptionErrorText?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
                     }
 
                     Button(
@@ -283,11 +264,11 @@ fun LogScreen() {
                             val proteinValue = proteinGrams.toIntOrNull()
 
                             when {
-                                entryDate.isBlank() -> errorText = "Enter a date."
-                                trimmedName.isBlank() -> errorText = "Enter a name."
-                                calorieValue == null -> errorText = "Calories must be a whole number."
+                                entryDate.isBlank() -> consumptionErrorText = "Enter a date."
+                                trimmedName.isBlank() -> consumptionErrorText = "Enter a name."
+                                calorieValue == null -> consumptionErrorText = "Calories must be a whole number."
                                 proteinGrams.isNotBlank() && proteinValue == null ->
-                                    errorText = "Protein must be a whole number."
+                                    consumptionErrorText = "Protein must be a whole number."
                                 else -> {
                                     scope.launch {
                                         repository.insertFoodDrinkEntry(
@@ -298,23 +279,33 @@ fun LogScreen() {
                                                 name = trimmedName,
                                                 calories = calorieValue,
                                                 proteinGrams = proteinValue,
-                                                regret = regret,
                                                 templateId = null
                                             )
                                         )
-
                                         name = ""
                                         calories = ""
                                         proteinGrams = ""
-                                        regret = false
-                                        errorText = null
+                                        consumptionErrorText = null
                                     }
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Save entry")
+                        Text("Save consumption")
+                    }
+
+                    HorizontalDivider()
+
+                    Text("Entries for $entryDate", style = MaterialTheme.typography.titleSmall)
+                    Text("Total calories: $totalCalories")
+
+                    if (foodEntries.isEmpty()) {
+                        Text("No consumption entries yet.")
+                    } else {
+                        foodEntries.forEach { entry ->
+                            FoodEntryRow(entry)
+                        }
                     }
                 }
             }
@@ -324,56 +315,394 @@ fun LogScreen() {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Entries for $entryDate",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text("Total calories: $totalCalories")
+                    Text("Workout", style = MaterialTheme.typography.titleMedium)
 
-                    if (entries.isEmpty()) {
-                        Text("No entries yet.")
+                    OutlinedTextField(
+                        value = workoutDate,
+                        onValueChange = { workoutDate = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Date (yyyy-mm-dd)") },
+                        singleLine = true
+                    )
+
+                    Column {
+                        OutlinedButton(
+                            onClick = { workoutTypeMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Type: ${WorkoutType.valueOf(workoutType).label()}")
+                        }
+
+                        DropdownMenu(
+                            expanded = workoutTypeMenuExpanded,
+                            onDismissRequest = { workoutTypeMenuExpanded = false }
+                        ) {
+                            WorkoutType.entries.forEach { type ->
+                                DropdownMenuItem(
+                                    text = { Text(type.label()) },
+                                    onClick = {
+                                        workoutType = type.name
+                                        workoutTypeMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Column {
+                        OutlinedButton(
+                            onClick = { workoutIntensityMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Intensity: ${WorkoutIntensity.valueOf(workoutIntensity).label()}")
+                        }
+
+                        DropdownMenu(
+                            expanded = workoutIntensityMenuExpanded,
+                            onDismissRequest = { workoutIntensityMenuExpanded = false }
+                        ) {
+                            WorkoutIntensity.entries.forEach { intensity ->
+                                DropdownMenuItem(
+                                    text = { Text(intensity.label()) },
+                                    onClick = {
+                                        workoutIntensity = intensity.name
+                                        workoutIntensityMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = workoutMinutes,
+                        onValueChange = { workoutMinutes = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Minutes") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    workoutErrorText?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+
+                    Button(
+                        onClick = {
+                            val minutesValue = workoutMinutes.toIntOrNull()
+
+                            when {
+                                workoutDate.isBlank() -> workoutErrorText = "Enter a date."
+                                minutesValue == null -> workoutErrorText = "Minutes must be a whole number."
+                                else -> {
+                                    scope.launch {
+                                        repository.insertWorkoutEntry(
+                                            WorkoutEntry(
+                                                entryDate = workoutDate,
+                                                workoutType = WorkoutType.valueOf(workoutType),
+                                                intensity = WorkoutIntensity.valueOf(workoutIntensity),
+                                                minutes = minutesValue
+                                            )
+                                        )
+                                        workoutMinutes = ""
+                                        workoutErrorText = null
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save workout")
+                    }
+
+                    HorizontalDivider()
+
+                    Text("Entries for $workoutDate", style = MaterialTheme.typography.titleSmall)
+                    Text("Total workout minutes: $totalWorkoutMinutes")
+
+                    if (workoutEntries.isEmpty()) {
+                        Text("No workout entries yet.")
+                    } else {
+                        workoutEntries.forEach { entry ->
+                            WorkoutEntryRow(entry)
+                        }
                     }
                 }
             }
         }
 
-        items(entries, key = { it.id }) { entry ->
-            EntryRow(entry = entry)
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Weight", style = MaterialTheme.typography.titleMedium)
+
+                    OutlinedTextField(
+                        value = weightDate,
+                        onValueChange = { weightDate = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Date (yyyy-mm-dd)") },
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = weightTime,
+                        onValueChange = { weightTime = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Time (HH:mm)") },
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = weightKg,
+                        onValueChange = { weightKg = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Weight (kg)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+
+                    weightErrorText?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+
+                    Button(
+                        onClick = {
+                            val weightValue = weightKg.toDoubleOrNull()
+
+                            when {
+                                weightDate.isBlank() -> weightErrorText = "Enter a date."
+                                weightTime.isBlank() -> weightErrorText = "Enter a time."
+                                weightValue == null -> weightErrorText = "Weight must be a number."
+                                else -> {
+                                    scope.launch {
+                                        repository.insertWeightEntry(
+                                            WeightEntry(
+                                                entryDate = weightDate,
+                                                entryTime = weightTime,
+                                                weightKg = weightValue
+                                            )
+                                        )
+                                        weightKg = ""
+                                        weightErrorText = null
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save weight")
+                    }
+
+                    HorizontalDivider()
+
+                    Text("Entries for $weightDate", style = MaterialTheme.typography.titleSmall)
+
+                    if (weightEntries.isEmpty()) {
+                        Text("No weight entries yet.")
+                    } else {
+                        weightEntries.forEach { entry ->
+                            WeightEntryRow(entry)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Waist", style = MaterialTheme.typography.titleMedium)
+
+                    OutlinedTextField(
+                        value = waistDate,
+                        onValueChange = { waistDate = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Date (yyyy-mm-dd)") },
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = waistCm,
+                        onValueChange = { waistCm = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Waist (cm)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+
+                    waistErrorText?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+
+                    Button(
+                        onClick = {
+                            val waistValue = waistCm.toDoubleOrNull()
+
+                            when {
+                                waistDate.isBlank() -> waistErrorText = "Enter a date."
+                                waistValue == null -> waistErrorText = "Waist must be a number."
+                                else -> {
+                                    scope.launch {
+                                        repository.insertWaistEntry(
+                                            WaistEntry(
+                                                entryDate = waistDate,
+                                                waistCm = waistValue
+                                            )
+                                        )
+                                        waistCm = ""
+                                        waistErrorText = null
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save waist")
+                    }
+
+                    HorizontalDivider()
+
+                    Text("Entries for $waistDate", style = MaterialTheme.typography.titleSmall)
+
+                    if (waistEntries.isEmpty()) {
+                        Text("No waist entries yet.")
+                    } else {
+                        waistEntries.forEach { entry ->
+                            WaistEntryRow(entry)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Steps", style = MaterialTheme.typography.titleMedium)
+
+                    OutlinedTextField(
+                        value = stepsDate,
+                        onValueChange = { stepsDate = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Date (yyyy-mm-dd)") },
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = stepsValue,
+                        onValueChange = { stepsValue = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Steps") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    stepsErrorText?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+
+                    Button(
+                        onClick = {
+                            val parsedSteps = stepsValue.toIntOrNull()
+
+                            when {
+                                stepsDate.isBlank() -> stepsErrorText = "Enter a date."
+                                parsedSteps == null -> stepsErrorText = "Steps must be a whole number."
+                                else -> {
+                                    scope.launch {
+                                        repository.upsertDailySteps(
+                                            DailyStepsEntry(
+                                                entryDate = stepsDate,
+                                                steps = parsedSteps
+                                            )
+                                        )
+                                        stepsValue = ""
+                                        stepsErrorText = null
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save steps")
+                    }
+
+                    HorizontalDivider()
+
+                    Text("Entry for $stepsDate", style = MaterialTheme.typography.titleSmall)
+
+                    if (stepsEntry == null) {
+                        Text("No steps entry yet.")
+                    } else {
+                        Text("Steps: ${stepsEntry!!.steps}")
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun EntryRow(entry: FoodDrinkEntry) {
+private fun FoodEntryRow(entry: FoodDrinkEntry) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = "${entry.timeSlot} • ${entry.entryType.label()}",
-                style = MaterialTheme.typography.labelLarge
-            )
-            Text(
-                text = entry.name,
-                style = MaterialTheme.typography.titleMedium
-            )
+            Text("${entry.timeSlot} • ${entry.entryType.label()}", style = MaterialTheme.typography.labelLarge)
+            Text(entry.name, style = MaterialTheme.typography.titleMedium)
             Text("Calories: ${entry.calories}")
+            entry.proteinGrams?.let { Text("Protein: $it g") }
+        }
+    }
+}
 
-            entry.proteinGrams?.let {
-                Text("Protein: $it g")
-            }
+@Composable
+private fun WorkoutEntryRow(entry: WorkoutEntry) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(entry.workoutType.label(), style = MaterialTheme.typography.titleMedium)
+            Text("Intensity: ${entry.intensity.label()}")
+            Text("Minutes: ${entry.minutes}")
+        }
+    }
+}
 
-            if (entry.regret) {
-                Text(
-                    text = "Regret: yes",
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+@Composable
+private fun WeightEntryRow(entry: WeightEntry) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("${entry.entryDate} • ${entry.entryTime}", style = MaterialTheme.typography.labelLarge)
+            Text("${entry.weightKg} kg", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
 
-            HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+@Composable
+private fun WaistEntryRow(entry: WaistEntry) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(entry.entryDate, style = MaterialTheme.typography.labelLarge)
+            Text("${entry.waistCm} cm", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
