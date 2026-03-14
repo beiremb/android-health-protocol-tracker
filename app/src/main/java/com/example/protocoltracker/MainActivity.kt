@@ -29,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.protocoltracker.ui.theme.ProtocolTrackerTheme
 import com.example.protocoltracker.ui.log.LogScreen
+import com.example.protocoltracker.ui.home.HomeScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,7 +109,13 @@ fun ProtocolTrackerRoot() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(AppScreen.Home.route) {
-                PlaceholderScreen(title = "Home")
+                HomeScreen(
+                    onOpenLog = {
+                        navController.navigate(AppScreen.Log.route) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
             composable(AppScreen.Log.route) {
                 LogScreen()
