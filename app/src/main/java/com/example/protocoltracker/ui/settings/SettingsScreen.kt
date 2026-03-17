@@ -1,15 +1,16 @@
 package com.example.protocoltracker.ui.settings
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -33,19 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.protocoltracker.ProtocolTrackerApp
 import com.example.protocoltracker.background.reminder.ReminderScheduler
-import com.example.protocoltracker.data.local.entity.DailyStepsEntry
-import com.example.protocoltracker.data.local.entity.FoodDrinkEntry
-import com.example.protocoltracker.data.local.entity.MilestoneEntry
-import com.example.protocoltracker.data.local.entity.WaistEntry
-import com.example.protocoltracker.data.local.entity.WeightEntry
-import com.example.protocoltracker.data.local.entity.WorkoutEntry
 import com.example.protocoltracker.data.settings.AppSettings
 import kotlinx.coroutines.launch
-
-private data class PendingExport(
-    val fileName: String,
-    val content: String
-)
 
 @Composable
 fun SettingsScreen() {
@@ -74,7 +64,6 @@ fun SettingsScreen() {
     var reminderTime by rememberSaveable(settings.reminderTime) { mutableStateOf(settings.reminderTime) }
 
     var statusText by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingExport by remember { mutableStateOf<PendingExport?>(null) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = RequestPermission()
@@ -91,25 +80,7 @@ fun SettingsScreen() {
         true
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = CreateDocument("text/csv")
-    ) { uri: Uri? ->
-        val export = pendingExport
-        if (uri == null || export == null) return@rememberLauncherForActivityResult
-
-        scope.launch {
-            runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { output ->
-                    output.write(export.content.toByteArray())
-                }
-            }.onSuccess {
-                statusText = "Exported ${export.fileName}"
-            }.onFailure {
-                statusText = "Export failed"
-            }
-            pendingExport = null
-        }
-    }
+    val versionName = remember { getAppVersionName(context) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -124,173 +95,171 @@ fun SettingsScreen() {
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Core settings", style = MaterialTheme.typography.titleMedium)
+            SectionCard(
+                title = "Targets",
+                subtitle = "Keep this tight. These values drive your core tracking context."
+            ) {
+                SingleSettingField(
+                    label = "Start date (yyyy-mm-dd)",
+                    value = startDate,
+                    onValueChange = { startDate = it }
+                )
 
-                    OutlinedTextField(
-                        value = startDate,
-                        onValueChange = { startDate = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Start date (yyyy-mm-dd)") },
-                        singleLine = true
-                    )
+                SettingFieldRow(
+                    leftLabel = "Start weight (kg)",
+                    leftValue = startWeight,
+                    onLeftChange = { startWeight = it },
+                    rightLabel = "Goal weight (kg)",
+                    rightValue = goalWeight,
+                    onRightChange = { goalWeight = it }
+                )
 
-                    OutlinedTextField(
-                        value = startWeight,
-                        onValueChange = { startWeight = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Start weight (kg)") },
-                        singleLine = true
-                    )
+                SettingFieldRow(
+                    leftLabel = "Calorie budget",
+                    leftValue = calorieBudget,
+                    onLeftChange = { calorieBudget = it },
+                    rightLabel = "Protein target",
+                    rightValue = proteinTarget,
+                    onRightChange = { proteinTarget = it }
+                )
 
-                    OutlinedTextField(
-                        value = goalWeight,
-                        onValueChange = { goalWeight = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Goal weight (kg)") },
-                        singleLine = true
-                    )
+                SettingFieldRow(
+                    leftLabel = "Fasting start (HH:mm)",
+                    leftValue = fastingStart,
+                    onLeftChange = { fastingStart = it },
+                    rightLabel = "Fasting end (HH:mm)",
+                    rightValue = fastingEnd,
+                    onRightChange = { fastingEnd = it }
+                )
+            }
+        }
 
-                    OutlinedTextField(
-                        value = calorieBudget,
-                        onValueChange = { calorieBudget = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Calorie budget") },
-                        singleLine = true
-                    )
+        item {
+            SectionCard(
+                title = "Reminders",
+                subtitle = "Only sends a reminder when nothing was logged that day."
+            ) {
+                SingleSettingField(
+                    label = "Reminder time (HH:mm)",
+                    value = reminderTime,
+                    onValueChange = { reminderTime = it }
+                )
 
-                    OutlinedTextField(
-                        value = proteinTarget,
-                        onValueChange = { proteinTarget = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Protein target") },
-                        singleLine = true
-                    )
-
-                    OutlinedTextField(
-                        value = fastingStart,
-                        onValueChange = { fastingStart = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Fasting start (HH:mm)") },
-                        singleLine = true
-                    )
-
-                    OutlinedTextField(
-                        value = fastingEnd,
-                        onValueChange = { fastingEnd = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Fasting end (HH:mm)") },
-                        singleLine = true
-                    )
-
-                    OutlinedTextField(
-                        value = reminderTime,
-                        onValueChange = { reminderTime = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Reminder time (HH:mm)") },
-                        singleLine = true
-                    )
-
-                    if (Build.VERSION.SDK_INT >= 33) {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    if (!notificationsGranted) {
                         Button(
                             onClick = {
                                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(if (notificationsGranted) "Notifications allowed" else "Allow notifications")
+                            Text("Allow notifications")
                         }
+                    } else {
+                        Text(
+                            text = "Notifications ready",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                settingsRepository.setStartDate(startDate)
-                                startWeight.toDoubleOrNull()?.let { settingsRepository.setStartWeightKg(it) }
-                                goalWeight.toDoubleOrNull()?.let { settingsRepository.setGoalWeightKg(it) }
-                                calorieBudget.toIntOrNull()?.let { settingsRepository.setCalorieBudget(it) }
-                                proteinTarget.toIntOrNull()?.let { settingsRepository.setProteinTarget(it) }
-                                settingsRepository.setFastingStart(fastingStart)
-                                settingsRepository.setFastingEnd(fastingEnd)
-                                settingsRepository.setReminderTime(reminderTime)
-                                ReminderScheduler.schedule(context)
-                                statusText = "Settings saved"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Save settings")
-                    }
+                } else {
+                    Text(
+                        text = "Notifications ready",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+            Button(
+                onClick = {
+                    val parsedStartWeight = startWeight.toDoubleOrNull()
+                    val parsedGoalWeight = goalWeight.toDoubleOrNull()
+                    val parsedCalorieBudget = calorieBudget.toIntOrNull()
+                    val parsedProteinTarget = proteinTarget.toIntOrNull()
+
+                    when {
+                        startWeight.isNotBlank() && parsedStartWeight == null -> {
+                            statusText = "Start weight must be a number"
+                        }
+                        goalWeight.isNotBlank() && parsedGoalWeight == null -> {
+                            statusText = "Goal weight must be a number"
+                        }
+                        calorieBudget.isNotBlank() && parsedCalorieBudget == null -> {
+                            statusText = "Calorie budget must be a whole number"
+                        }
+                        proteinTarget.isNotBlank() && parsedProteinTarget == null -> {
+                            statusText = "Protein target must be a whole number"
+                        }
+                        else -> {
+                            scope.launch {
+                                settingsRepository.setStartDate(startDate.trim())
+                                parsedStartWeight?.let { settingsRepository.setStartWeightKg(it) }
+                                parsedGoalWeight?.let { settingsRepository.setGoalWeightKg(it) }
+                                parsedCalorieBudget?.let { settingsRepository.setCalorieBudget(it) }
+                                parsedProteinTarget?.let { settingsRepository.setProteinTarget(it) }
+                                settingsRepository.setFastingStart(fastingStart.trim())
+                                settingsRepository.setFastingEnd(fastingEnd.trim())
+                                settingsRepository.setReminderTime(reminderTime.trim())
+                                ReminderScheduler.schedule(context)
+                                statusText = "Settings saved"
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save settings")
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "Export",
+                subtitle = "Creates one ZIP with all CSV files."
+            ) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val exportZip = ExportAllManager.createExportZip(
+                                    context = context,
+                                    foodEntries = foodEntries,
+                                    workoutEntries = workoutEntries,
+                                    weightEntries = weightEntries,
+                                    waistEntries = waistEntries,
+                                    stepsEntries = stepsEntries,
+                                    milestones = milestones
+                                )
+                                ExportAllManager.shareZip(context, exportZip)
+                                statusText = "Prepared ${exportZip.fileName}"
+                            } catch (_: Exception) {
+                                statusText = "Export failed"
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Export CSV", style = MaterialTheme.typography.titleMedium)
-
-                    ExportButton("food_drinks.csv") {
-                        launchExport(
-                            fileName = "food_drinks.csv",
-                            content = foodDrinksCsv(foodEntries),
-                            pendingExportSetter = { pendingExport = it },
-                            launcher = { exportLauncher.launch(it) }
-                        )
-                    }
-
-                    ExportButton("workouts.csv") {
-                        launchExport(
-                            fileName = "workouts.csv",
-                            content = workoutsCsv(workoutEntries),
-                            pendingExportSetter = { pendingExport = it },
-                            launcher = { exportLauncher.launch(it) }
-                        )
-                    }
-
-                    ExportButton("weights.csv") {
-                        launchExport(
-                            fileName = "weights.csv",
-                            content = weightsCsv(weightEntries),
-                            pendingExportSetter = { pendingExport = it },
-                            launcher = { exportLauncher.launch(it) }
-                        )
-                    }
-
-                    ExportButton("waist.csv") {
-                        launchExport(
-                            fileName = "waist.csv",
-                            content = waistCsv(waistEntries),
-                            pendingExportSetter = { pendingExport = it },
-                            launcher = { exportLauncher.launch(it) }
-                        )
-                    }
-
-                    ExportButton("steps.csv") {
-                        launchExport(
-                            fileName = "steps.csv",
-                            content = stepsCsv(stepsEntries),
-                            pendingExportSetter = { pendingExport = it },
-                            launcher = { exportLauncher.launch(it) }
-                        )
-                    }
-
-                    ExportButton("milestones.csv") {
-                        launchExport(
-                            fileName = "milestones.csv",
-                            content = milestonesCsv(milestones),
-                            pendingExportSetter = { pendingExport = it },
-                            launcher = { exportLauncher.launch(it) }
-                        )
-                    }
+                    Text("Export all")
                 }
+
+                Text(
+                    text = "Includes food/drinks, workouts, weights, waist, steps, and milestones.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        item {
+            SectionCard(title = "About") {
+                Text(
+                    text = "Version $versionName",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -308,110 +277,91 @@ fun SettingsScreen() {
 }
 
 @Composable
-private fun ExportButton(
-    fileName: String,
-    onClick: () -> Unit
+private fun SectionCard(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit
 ) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            subtitle?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingFieldRow(
+    leftLabel: String,
+    leftValue: String,
+    onLeftChange: (String) -> Unit,
+    rightLabel: String,
+    rightValue: String,
+    onRightChange: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("Export $fileName")
+        OutlinedTextField(
+            value = leftValue,
+            onValueChange = onLeftChange,
+            modifier = Modifier.weight(1f),
+            label = { Text(leftLabel) },
+            singleLine = true
+        )
+
+        OutlinedTextField(
+            value = rightValue,
+            onValueChange = onRightChange,
+            modifier = Modifier.weight(1f),
+            label = { Text(rightLabel) },
+            singleLine = true
+        )
     }
 }
 
-private fun launchExport(
-    fileName: String,
-    content: String,
-    pendingExportSetter: (PendingExport) -> Unit,
-    launcher: (String) -> Unit
+@Composable
+private fun SingleSettingField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit
 ) {
-    pendingExportSetter(PendingExport(fileName, content))
-    launcher(fileName)
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true
+    )
 }
 
-private fun csvCell(value: String): String {
-    val escaped = value.replace("\"", "\"\"")
-    return "\"$escaped\""
-}
-
-private fun foodDrinksCsv(entries: List<FoodDrinkEntry>): String {
-    val header = "id,date,time,type,name,calories,protein_grams,template_id"
-    val rows = entries.map {
-        listOf(
-            it.id.toString(),
-            csvCell(it.entryDate),
-            csvCell(it.timeSlot),
-            csvCell(it.entryType.name),
-            csvCell(it.name),
-            it.calories.toString(),
-            it.proteinGrams?.toString() ?: "",
-            it.templateId?.toString() ?: ""
-        ).joinToString(",")
-    }
-    return (listOf(header) + rows).joinToString("\n")
-}
-
-private fun workoutsCsv(entries: List<WorkoutEntry>): String {
-    val header = "id,date,type,intensity,minutes"
-    val rows = entries.map {
-        listOf(
-            it.id.toString(),
-            csvCell(it.entryDate),
-            csvCell(it.workoutType.name),
-            csvCell(it.intensity.name),
-            it.minutes.toString()
-        ).joinToString(",")
-    }
-    return (listOf(header) + rows).joinToString("\n")
-}
-
-private fun weightsCsv(entries: List<WeightEntry>): String {
-    val header = "id,date,time,weight_kg"
-    val rows = entries.map {
-        listOf(
-            it.id.toString(),
-            csvCell(it.entryDate),
-            csvCell(it.entryTime),
-            it.weightKg.toString()
-        ).joinToString(",")
-    }
-    return (listOf(header) + rows).joinToString("\n")
-}
-
-private fun waistCsv(entries: List<WaistEntry>): String {
-    val header = "id,date,waist_cm"
-    val rows = entries.map {
-        listOf(
-            it.id.toString(),
-            csvCell(it.entryDate),
-            it.waistCm.toString()
-        ).joinToString(",")
-    }
-    return (listOf(header) + rows).joinToString("\n")
-}
-
-private fun stepsCsv(entries: List<DailyStepsEntry>): String {
-    val header = "date,steps"
-    val rows = entries.map {
-        listOf(
-            csvCell(it.entryDate),
-            it.steps.toString()
-        ).joinToString(",")
-    }
-    return (listOf(header) + rows).joinToString("\n")
-}
-
-private fun milestonesCsv(entries: List<MilestoneEntry>): String {
-    val header = "id,target_weight_kg,target_date,reward_text,sort_order"
-    val rows = entries.map {
-        listOf(
-            it.id.toString(),
-            it.targetWeightKg.toString(),
-            csvCell(it.targetDate),
-            csvCell(it.rewardText),
-            it.sortOrder.toString()
-        ).joinToString(",")
-    }
-    return (listOf(header) + rows).joinToString("\n")
+private fun getAppVersionName(context: Context): String {
+    return runCatching {
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(0)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }
+        packageInfo.versionName ?: "dev"
+    }.getOrDefault("dev")
 }
