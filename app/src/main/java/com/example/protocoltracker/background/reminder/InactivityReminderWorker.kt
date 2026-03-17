@@ -13,21 +13,27 @@ class InactivityReminderWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        return runCatching {
+            if (shouldSendReminder()) {
+                ReminderNotifications.showInactivityNotification(applicationContext)
+            }
+            Result.success()
+        }.getOrElse {
+            Result.retry()
+        }
+    }
+
+    private suspend fun shouldSendReminder(): Boolean {
         val today = LocalDate.now().toString()
         val db = AppDatabase.getDatabase(applicationContext)
 
-        val hasFood = db.foodDrinkEntryDao().observeByDate(today).first().isNotEmpty()
+        val hasFoodDrink = db.foodDrinkEntryDao().observeByDate(today).first().isNotEmpty()
         val hasWorkout = db.workoutEntryDao().observeByDate(today).first().isNotEmpty()
         val hasWeight = db.weightEntryDao().observeByDate(today).first().isNotEmpty()
         val hasWaist = db.waistEntryDao().observeByDate(today).first().isNotEmpty()
         val hasSteps = db.dailyStepsDao().observeByDate(today).first() != null
 
-        val hasAnyLog = hasFood || hasWorkout || hasWeight || hasWaist || hasSteps
-
-        if (!hasAnyLog) {
-            ReminderNotifications.showInactivityNotification(applicationContext)
-        }
-
-        return Result.success()
+        val hasAnyLog = hasFoodDrink || hasWorkout || hasWeight || hasWaist || hasSteps
+        return !hasAnyLog
     }
 }

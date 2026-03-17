@@ -124,10 +124,10 @@ fun SettingsScreen() {
                 )
 
                 SettingFieldRow(
-                    leftLabel = "Fasting start (HH:mm)",
+                    leftLabel = "Fasting start",
                     leftValue = fastingStart,
                     onLeftChange = { fastingStart = it },
-                    rightLabel = "Fasting end (HH:mm)",
+                    rightLabel = "Fasting end",
                     rightValue = fastingEnd,
                     onRightChange = { fastingEnd = it }
                 )
@@ -140,7 +140,7 @@ fun SettingsScreen() {
                 subtitle = "Only sends a reminder when nothing was logged that day."
             ) {
                 SingleSettingField(
-                    label = "Reminder time (HH:mm)",
+                    label = "Reminder time",
                     value = reminderTime,
                     onValueChange = { reminderTime = it }
                 )
