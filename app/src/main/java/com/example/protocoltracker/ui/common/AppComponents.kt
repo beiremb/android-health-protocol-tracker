@@ -3,7 +3,6 @@ package com.example.protocoltracker.ui.common
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -124,25 +123,6 @@ fun CompactMetricCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun ColumnScope.ActionCardButton(
-    label: String,
-    onClick: () -> Unit
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium
-        )
     }
 }
 

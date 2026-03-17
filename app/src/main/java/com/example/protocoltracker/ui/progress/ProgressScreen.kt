@@ -93,6 +93,10 @@ fun ProgressScreen() {
     var showMilestoneDialog by rememberSaveable { mutableStateOf(false) }
     var editingMilestoneId by rememberSaveable { mutableStateOf<Long?>(null) }
 
+    fun closeMilestoneDialog() {
+        showMilestoneDialog = false
+        editingMilestoneId = null
+    }
     val dailyMetrics = remember(today, foodEntries, workoutEntries, weightEntries, waistEntries, stepsEntries) {
         MetricsCalculator.calculateDailyMetrics(
             date = today,
@@ -332,7 +336,7 @@ fun ProgressScreen() {
 
         SimpleMilestoneDialog(
             initialMilestone = editingMilestone,
-            onDismiss = { showMilestoneDialog = false },
+            onDismiss = ::closeMilestoneDialog,
             onSave = { weight, date, reward ->
                 scope.launch {
                     val entry = MilestoneEntry(
@@ -350,14 +354,14 @@ fun ProgressScreen() {
                         repository.updateMilestone(entry)
                     }
 
-                    showMilestoneDialog = false
+                    closeMilestoneDialog()
                 }
             },
             onDelete = editingMilestone?.let {
                 {
                     scope.launch {
                         repository.deleteMilestone(it)
-                        showMilestoneDialog = false
+                        closeMilestoneDialog()
                     }
                 }
             }

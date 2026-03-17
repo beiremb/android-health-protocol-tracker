@@ -2,11 +2,14 @@ package com.example.protocoltracker.ui.log
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -20,9 +23,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -35,7 +38,6 @@ import com.example.protocoltracker.data.local.entity.WeightEntry
 import com.example.protocoltracker.data.local.entity.WorkoutEntry
 import com.example.protocoltracker.data.local.entity.WorkoutIntensity
 import com.example.protocoltracker.data.local.entity.WorkoutType
-import com.example.protocoltracker.ui.common.ActionCardButton
 import com.example.protocoltracker.ui.common.AppDialogCard
 import com.example.protocoltracker.ui.common.AppPageTitle
 import kotlinx.coroutines.launch
@@ -45,7 +47,6 @@ import java.time.LocalTime
 private enum class LogPanel {
     WEIGHT,
     FOOD,
-    DRINK,
     WAIST,
     STEPS,
     WORKOUT
@@ -97,40 +98,13 @@ private fun WorkoutIntensity.label(): String =
 fun LogScreen() {
     val app = LocalContext.current.applicationContext as ProtocolTrackerApp
     val repository = app.repository
-    val scope = rememberCoroutineScope()
     val today = LocalDate.now().toString()
 
     var activePanel by remember { mutableStateOf<LogPanel?>(null) }
 
-    var entryDate by rememberSaveable { mutableStateOf(today) }
-    var timeSlot by rememberSaveable { mutableStateOf(defaultTimeSlot()) }
-    var name by rememberSaveable { mutableStateOf("") }
-    var calories by rememberSaveable { mutableStateOf("") }
-    var proteinGrams by rememberSaveable { mutableStateOf("") }
-    var consumptionErrorText by rememberSaveable { mutableStateOf<String?>(null) }
-    var timeMenuExpanded by remember { mutableStateOf(false) }
-    var typeMenuExpanded by remember { mutableStateOf(false) }
-
-    var workoutDate by rememberSaveable { mutableStateOf(today) }
-    var workoutType by rememberSaveable { mutableStateOf(WorkoutType.STRENGTH.name) }
-    var workoutIntensity by rememberSaveable { mutableStateOf(WorkoutIntensity.MID.name) }
-    var workoutMinutes by rememberSaveable { mutableStateOf("") }
-    var workoutTypeMenuExpanded by remember { mutableStateOf(false) }
-    var workoutIntensityMenuExpanded by remember { mutableStateOf(false) }
-    var workoutErrorText by rememberSaveable { mutableStateOf<String?>(null) }
-
-    var weightDate by rememberSaveable { mutableStateOf(today) }
-    var weightKg by rememberSaveable { mutableStateOf("") }
-    var weightErrorText by rememberSaveable { mutableStateOf<String?>(null) }
-
-    var waistDate by rememberSaveable { mutableStateOf(today) }
-    var waistCm by rememberSaveable { mutableStateOf("") }
-    var waistErrorText by rememberSaveable { mutableStateOf<String?>(null) }
-
-    var stepsDate by rememberSaveable { mutableStateOf(today) }
-    var stepsValue by rememberSaveable { mutableStateOf("") }
-    var stepsErrorText by rememberSaveable { mutableStateOf<String?>(null) }
-
+    fun closePanel() {
+        activePanel = null
+    }
     val foodEntriesToday by remember(today) {
         repository.observeFoodDrinkEntriesByDate(today)
     }.collectAsState(initial = emptyList())
@@ -155,500 +129,656 @@ fun LogScreen() {
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         AppPageTitle(
             title = "Log",
-            subtitle = "Tap a category to add a new entry."
+            subtitle = "Choose what to log."
         )
 
-        ActionCardButton("Weight") { activePanel = LogPanel.WEIGHT }
-        ActionCardButton("Food") { activePanel = LogPanel.FOOD }
-        ActionCardButton("Drink") { activePanel = LogPanel.DRINK }
-        ActionCardButton("Waist") { activePanel = LogPanel.WAIST }
-        ActionCardButton("Steps") { activePanel = LogPanel.STEPS }
-        ActionCardButton("Workout") { activePanel = LogPanel.WORKOUT }
-    }
-
-    if (activePanel == LogPanel.FOOD || activePanel == LogPanel.DRINK) {
-        var selectedEntryType by rememberSaveable(activePanel) {
-            mutableStateOf(
-                if (activePanel == LogPanel.DRINK) {
-                    FoodDrinkType.DRINK.name
-                } else {
-                    FoodDrinkType.MEAL.name
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            BrandLogButton(
+                label = "Weight",
+                containerColor = MaterialTheme.colorScheme.primary,
+                onClick = { activePanel = LogPanel.WEIGHT },
+                modifier = Modifier.weight(1f)
+            )
+            BrandLogButton(
+                label = "Food & drink",
+                containerColor = MaterialTheme.colorScheme.secondary,
+                onClick = { activePanel = LogPanel.FOOD },
+                modifier = Modifier.weight(1f)
             )
         }
 
-        AppDialogCard(
-            title = "Log your food or drink",
-            onDismiss = { activePanel = null }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column {
-                    OutlinedButton(
-                        onClick = { typeMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Type: ${FoodDrinkType.valueOf(selectedEntryType).label()}")
-                    }
+            BrandLogButton(
+                label = "Waist",
+                containerColor = MaterialTheme.colorScheme.secondary,
+                onClick = { activePanel = LogPanel.WAIST },
+                modifier = Modifier.weight(1f)
+            )
+            BrandLogButton(
+                label = "Steps",
+                containerColor = MaterialTheme.colorScheme.primary,
+                onClick = { activePanel = LogPanel.STEPS },
+                modifier = Modifier.weight(1f)
+            )
+        }
 
-                    DropdownMenu(
-                        expanded = typeMenuExpanded,
-                        onDismissRequest = { typeMenuExpanded = false }
-                    ) {
-                        FoodDrinkType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.label()) },
-                                onClick = {
-                                    selectedEntryType = type.name
-                                    typeMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            BrandLogButton(
+                label = "Workout",
+                containerColor = MaterialTheme.colorScheme.primary,
+                onClick = { activePanel = LogPanel.WORKOUT },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
 
-                OutlinedTextField(
-                    value = entryDate,
-                    onValueChange = { entryDate = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Date (yyyy-mm-dd)") },
-                    singleLine = true
-                )
+    when (activePanel) {
+        LogPanel.FOOD -> FoodDialog(
+            today = today,
+            foodEntriesToday = foodEntriesToday,
+            onDismiss = ::closePanel
+        )
 
-                Column {
-                    OutlinedButton(
-                        onClick = { timeMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Time: $timeSlot")
-                    }
+        LogPanel.WORKOUT -> WorkoutDialog(
+            today = today,
+            workoutEntriesToday = workoutEntriesToday,
+            onDismiss = ::closePanel
+        )
 
-                    DropdownMenu(
-                        expanded = timeMenuExpanded,
-                        onDismissRequest = { timeMenuExpanded = false }
-                    ) {
-                        allTimeSlots().forEach { slot ->
-                            DropdownMenuItem(
-                                text = { Text(slot) },
-                                onClick = {
-                                    timeSlot = slot
-                                    timeMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+        LogPanel.WEIGHT -> WeightDialog(
+            today = today,
+            weightEntriesToday = weightEntriesToday,
+            onDismiss = ::closePanel
+        )
 
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Name") },
-                    singleLine = true
-                )
+        LogPanel.WAIST -> WaistDialog(
+            today = today,
+            waistEntriesToday = waistEntriesToday,
+            onDismiss = ::closePanel
+        )
 
-                OutlinedTextField(
-                    value = calories,
-                    onValueChange = { calories = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Calories") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
+        LogPanel.STEPS -> StepsDialog(
+            today = today,
+            stepsEntryToday = stepsEntryToday,
+            onDismiss = ::closePanel
+        )
 
-                OutlinedTextField(
-                    value = proteinGrams,
-                    onValueChange = { proteinGrams = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Protein grams (optional)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
+        null -> Unit
+    }
+}
 
-                consumptionErrorText?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
+@Composable
+private fun FoodDialog(
+    today: String,
+    foodEntriesToday: List<FoodDrinkEntry>,
+    onDismiss: () -> Unit
+) {
+    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
+    val repository = app.repository
+    val scope = rememberCoroutineScope()
 
-                Button(
-                    onClick = {
-                        val trimmedName = name.trim()
-                        val calorieValue = calories.toIntOrNull()
-                        val proteinValue = proteinGrams.toIntOrNull()
+    var entryDate by remember { mutableStateOf(today) }
+    var timeSlot by remember { mutableStateOf(defaultTimeSlot()) }
+    var selectedEntryType by remember { mutableStateOf(FoodDrinkType.MEAL.name) }
+    var name by remember { mutableStateOf("") }
+    var calories by remember { mutableStateOf("") }
+    var proteinGrams by remember { mutableStateOf("") }
+    var errorText by remember { mutableStateOf<String?>(null) }
+    var timeMenuExpanded by remember { mutableStateOf(false) }
+    var typeMenuExpanded by remember { mutableStateOf(false) }
 
-                        when {
-                            entryDate.isBlank() -> consumptionErrorText = "Enter a date."
-                            trimmedName.isBlank() -> consumptionErrorText = "Enter a name."
-                            calorieValue == null -> consumptionErrorText = "Calories must be a whole number."
-                            proteinGrams.isNotBlank() && proteinValue == null ->
-                                consumptionErrorText = "Protein must be a whole number."
-                            else -> {
-                                scope.launch {
-                                    repository.insertFoodDrinkEntry(
-                                        FoodDrinkEntry(
-                                            entryDate = entryDate,
-                                            timeSlot = timeSlot,
-                                            entryType = FoodDrinkType.valueOf(selectedEntryType),
-                                            name = trimmedName,
-                                            calories = calorieValue,
-                                            proteinGrams = proteinValue,
-                                            templateId = null
-                                        )
-                                    )
-                                    name = ""
-                                    calories = ""
-                                    proteinGrams = ""
-                                    consumptionErrorText = null
-                                    activePanel = null
-                                }
-                            }
-                        }
-                    },
+    AppDialogCard(
+        title = "Log food or drink",
+        onDismiss = onDismiss
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column {
+                OutlinedButton(
+                    onClick = { typeMenuExpanded = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save")
+                    Text("Type: ${FoodDrinkType.valueOf(selectedEntryType).label()}")
                 }
 
-                HorizontalDivider()
-
-                Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-                if (foodEntriesToday.isEmpty()) {
-                    Text("No logs yet.")
-                } else {
-                    foodEntriesToday.forEach { entry ->
-                        FoodEntryRow(entry)
+                DropdownMenu(
+                    expanded = typeMenuExpanded,
+                    onDismissRequest = { typeMenuExpanded = false }
+                ) {
+                    FoodDrinkType.entries.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type.label()) },
+                            onClick = {
+                                selectedEntryType = type.name
+                                typeMenuExpanded = false
+                            }
+                        )
                     }
+                }
+            }
+
+            OutlinedTextField(
+                value = entryDate,
+                onValueChange = { entryDate = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Date (yyyy-mm-dd)") },
+                singleLine = true
+            )
+
+            Column {
+                OutlinedButton(
+                    onClick = { timeMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Time: $timeSlot")
+                }
+
+                DropdownMenu(
+                    expanded = timeMenuExpanded,
+                    onDismissRequest = { timeMenuExpanded = false }
+                ) {
+                    allTimeSlots().forEach { slot ->
+                        DropdownMenuItem(
+                            text = { Text(slot) },
+                            onClick = {
+                                timeSlot = slot
+                                timeMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Name") },
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = calories,
+                onValueChange = { calories = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Calories") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
+            OutlinedTextField(
+                value = proteinGrams,
+                onValueChange = { proteinGrams = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Protein grams (optional)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
+            errorText?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            Button(
+                onClick = {
+                    val trimmedName = name.trim()
+                    val calorieValue = calories.toIntOrNull()
+                    val proteinValue = proteinGrams.toIntOrNull()
+
+                    when {
+                        entryDate.isBlank() -> errorText = "Enter a date."
+                        trimmedName.isBlank() -> errorText = "Enter a name."
+                        calorieValue == null -> errorText = "Calories must be a whole number."
+                        proteinGrams.isNotBlank() && proteinValue == null ->
+                            errorText = "Protein must be a whole number."
+                        else -> {
+                            scope.launch {
+                                repository.insertFoodDrinkEntry(
+                                    FoodDrinkEntry(
+                                        entryDate = entryDate,
+                                        timeSlot = timeSlot,
+                                        entryType = FoodDrinkType.valueOf(selectedEntryType),
+                                        name = trimmedName,
+                                        calories = calorieValue,
+                                        proteinGrams = proteinValue,
+                                        templateId = null
+                                    )
+                                )
+                                onDismiss()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save")
+            }
+
+            HorizontalDivider()
+
+            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
+
+            if (foodEntriesToday.isEmpty()) {
+                Text("No logs yet.")
+            } else {
+                foodEntriesToday.forEach { entry ->
+                    FoodEntryRow(entry)
                 }
             }
         }
     }
+}
 
-    if (activePanel == LogPanel.WORKOUT) {
-        AppDialogCard(
-            title = "Log your workout",
-            onDismiss = { activePanel = null }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = workoutDate,
-                    onValueChange = { workoutDate = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Date (yyyy-mm-dd)") },
-                    singleLine = true
-                )
+@Composable
+private fun WorkoutDialog(
+    today: String,
+    workoutEntriesToday: List<WorkoutEntry>,
+    onDismiss: () -> Unit
+) {
+    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
+    val repository = app.repository
+    val scope = rememberCoroutineScope()
 
-                Column {
-                    OutlinedButton(
-                        onClick = { workoutTypeMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Type: ${WorkoutType.valueOf(workoutType).label()}")
-                    }
+    var workoutDate by remember { mutableStateOf(today) }
+    var workoutType by remember { mutableStateOf(WorkoutType.STRENGTH.name) }
+    var workoutIntensity by remember { mutableStateOf(WorkoutIntensity.MID.name) }
+    var workoutMinutes by remember { mutableStateOf("") }
+    var workoutTypeMenuExpanded by remember { mutableStateOf(false) }
+    var workoutIntensityMenuExpanded by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf<String?>(null) }
 
-                    DropdownMenu(
-                        expanded = workoutTypeMenuExpanded,
-                        onDismissRequest = { workoutTypeMenuExpanded = false }
-                    ) {
-                        WorkoutType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.label()) },
-                                onClick = {
-                                    workoutType = type.name
-                                    workoutTypeMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+    AppDialogCard(
+        title = "Log your workout",
+        onDismiss = onDismiss
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = workoutDate,
+                onValueChange = { workoutDate = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Date (yyyy-mm-dd)") },
+                singleLine = true
+            )
 
-                Column {
-                    OutlinedButton(
-                        onClick = { workoutIntensityMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Intensity: ${WorkoutIntensity.valueOf(workoutIntensity).label()}")
-                    }
-
-                    DropdownMenu(
-                        expanded = workoutIntensityMenuExpanded,
-                        onDismissRequest = { workoutIntensityMenuExpanded = false }
-                    ) {
-                        WorkoutIntensity.entries.forEach { intensity ->
-                            DropdownMenuItem(
-                                text = { Text(intensity.label()) },
-                                onClick = {
-                                    workoutIntensity = intensity.name
-                                    workoutIntensityMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = workoutMinutes,
-                    onValueChange = { workoutMinutes = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Minutes") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-
-                workoutErrorText?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
-
-                Button(
-                    onClick = {
-                        val minutesValue = workoutMinutes.toIntOrNull()
-
-                        when {
-                            workoutDate.isBlank() -> workoutErrorText = "Enter a date."
-                            minutesValue == null -> workoutErrorText = "Minutes must be a whole number."
-                            else -> {
-                                scope.launch {
-                                    repository.insertWorkoutEntry(
-                                        WorkoutEntry(
-                                            entryDate = workoutDate,
-                                            workoutType = WorkoutType.valueOf(workoutType),
-                                            intensity = WorkoutIntensity.valueOf(workoutIntensity),
-                                            minutes = minutesValue
-                                        )
-                                    )
-                                    workoutMinutes = ""
-                                    workoutErrorText = null
-                                    activePanel = null
-                                }
-                            }
-                        }
-                    },
+            Column {
+                OutlinedButton(
+                    onClick = { workoutTypeMenuExpanded = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save")
+                    Text("Type: ${WorkoutType.valueOf(workoutType).label()}")
                 }
 
-                HorizontalDivider()
-
-                Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-                if (workoutEntriesToday.isEmpty()) {
-                    Text("No logs yet.")
-                } else {
-                    workoutEntriesToday.forEach { entry ->
-                        WorkoutEntryRow(entry)
+                DropdownMenu(
+                    expanded = workoutTypeMenuExpanded,
+                    onDismissRequest = { workoutTypeMenuExpanded = false }
+                ) {
+                    WorkoutType.entries.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type.label()) },
+                            onClick = {
+                                workoutType = type.name
+                                workoutTypeMenuExpanded = false
+                            }
+                        )
                     }
+                }
+            }
+
+            Column {
+                OutlinedButton(
+                    onClick = { workoutIntensityMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Intensity: ${WorkoutIntensity.valueOf(workoutIntensity).label()}")
+                }
+
+                DropdownMenu(
+                    expanded = workoutIntensityMenuExpanded,
+                    onDismissRequest = { workoutIntensityMenuExpanded = false }
+                ) {
+                    WorkoutIntensity.entries.forEach { intensity ->
+                        DropdownMenuItem(
+                            text = { Text(intensity.label()) },
+                            onClick = {
+                                workoutIntensity = intensity.name
+                                workoutIntensityMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = workoutMinutes,
+                onValueChange = { workoutMinutes = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Minutes") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
+            errorText?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            Button(
+                onClick = {
+                    val minutesValue = workoutMinutes.toIntOrNull()
+
+                    when {
+                        workoutDate.isBlank() -> errorText = "Enter a date."
+                        minutesValue == null -> errorText = "Minutes must be a whole number."
+                        else -> {
+                            scope.launch {
+                                repository.insertWorkoutEntry(
+                                    WorkoutEntry(
+                                        entryDate = workoutDate,
+                                        workoutType = WorkoutType.valueOf(workoutType),
+                                        intensity = WorkoutIntensity.valueOf(workoutIntensity),
+                                        minutes = minutesValue
+                                    )
+                                )
+                                onDismiss()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save")
+            }
+
+            HorizontalDivider()
+
+            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
+
+            if (workoutEntriesToday.isEmpty()) {
+                Text("No logs yet.")
+            } else {
+                workoutEntriesToday.forEach { entry ->
+                    WorkoutEntryRow(entry)
                 }
             }
         }
     }
+}
 
-    if (activePanel == LogPanel.WEIGHT) {
-        AppDialogCard(
-            title = "Log your weight",
-            onDismiss = { activePanel = null }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = weightDate,
-                    onValueChange = { weightDate = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Date (yyyy-mm-dd)") },
-                    singleLine = true
-                )
+@Composable
+private fun WeightDialog(
+    today: String,
+    weightEntriesToday: List<WeightEntry>,
+    onDismiss: () -> Unit
+) {
+    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
+    val repository = app.repository
+    val scope = rememberCoroutineScope()
 
-                OutlinedTextField(
-                    value = weightKg,
-                    onValueChange = { weightKg = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Weight (kg)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
+    var weightDate by remember { mutableStateOf(today) }
+    var weightKg by remember { mutableStateOf("") }
+    var errorText by remember { mutableStateOf<String?>(null) }
 
-                weightErrorText?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
+    AppDialogCard(
+        title = "Log your weight",
+        onDismiss = onDismiss
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = weightDate,
+                onValueChange = { weightDate = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Date (yyyy-mm-dd)") },
+                singleLine = true
+            )
 
-                Button(
-                    onClick = {
-                        val weightValue = weightKg.toDoubleOrNull()
+            OutlinedTextField(
+                value = weightKg,
+                onValueChange = { weightKg = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Weight (kg)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
 
-                        when {
-                            weightDate.isBlank() -> weightErrorText = "Enter a date."
-                            weightValue == null -> weightErrorText = "Weight must be a number."
-                            else -> {
-                                scope.launch {
-                                    repository.insertWeightEntry(
-                                        WeightEntry(
-                                            entryDate = weightDate,
-                                            entryTime = currentTime(),
-                                            weightKg = weightValue
-                                        )
+            errorText?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            Button(
+                onClick = {
+                    val weightValue = weightKg.toDoubleOrNull()
+
+                    when {
+                        weightDate.isBlank() -> errorText = "Enter a date."
+                        weightValue == null -> errorText = "Weight must be a number."
+                        else -> {
+                            scope.launch {
+                                repository.insertWeightEntry(
+                                    WeightEntry(
+                                        entryDate = weightDate,
+                                        entryTime = currentTime(),
+                                        weightKg = weightValue
                                     )
-                                    weightKg = ""
-                                    weightErrorText = null
-                                    activePanel = null
-                                }
+                                )
+                                onDismiss()
                             }
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save")
-                }
-
-                HorizontalDivider()
-
-                Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-                if (weightEntriesToday.isEmpty()) {
-                    Text("No logs yet.")
-                } else {
-                    weightEntriesToday.forEach { entry ->
-                        WeightEntryRow(entry)
                     }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save")
+            }
+
+            HorizontalDivider()
+
+            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
+
+            if (weightEntriesToday.isEmpty()) {
+                Text("No logs yet.")
+            } else {
+                weightEntriesToday.forEach { entry ->
+                    WeightEntryRow(entry)
                 }
             }
         }
     }
+}
 
-    if (activePanel == LogPanel.WAIST) {
-        AppDialogCard(
-            title = "Log your waist",
-            onDismiss = { activePanel = null }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = waistDate,
-                    onValueChange = { waistDate = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Date (yyyy-mm-dd)") },
-                    singleLine = true
-                )
+@Composable
+private fun WaistDialog(
+    today: String,
+    waistEntriesToday: List<WaistEntry>,
+    onDismiss: () -> Unit
+) {
+    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
+    val repository = app.repository
+    val scope = rememberCoroutineScope()
 
-                OutlinedTextField(
-                    value = waistCm,
-                    onValueChange = { waistCm = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Waist (cm)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
+    var waistDate by remember { mutableStateOf(today) }
+    var waistCm by remember { mutableStateOf("") }
+    var errorText by remember { mutableStateOf<String?>(null) }
 
-                waistErrorText?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
+    AppDialogCard(
+        title = "Log your waist",
+        onDismiss = onDismiss
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = waistDate,
+                onValueChange = { waistDate = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Date (yyyy-mm-dd)") },
+                singleLine = true
+            )
 
-                Button(
-                    onClick = {
-                        val waistValue = waistCm.toDoubleOrNull()
+            OutlinedTextField(
+                value = waistCm,
+                onValueChange = { waistCm = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Waist (cm)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
 
-                        when {
-                            waistDate.isBlank() -> waistErrorText = "Enter a date."
-                            waistValue == null -> waistErrorText = "Waist must be a number."
-                            else -> {
-                                scope.launch {
-                                    repository.insertWaistEntry(
-                                        WaistEntry(
-                                            entryDate = waistDate,
-                                            waistCm = waistValue
-                                        )
+            errorText?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            Button(
+                onClick = {
+                    val waistValue = waistCm.toDoubleOrNull()
+
+                    when {
+                        waistDate.isBlank() -> errorText = "Enter a date."
+                        waistValue == null -> errorText = "Waist must be a number."
+                        else -> {
+                            scope.launch {
+                                repository.insertWaistEntry(
+                                    WaistEntry(
+                                        entryDate = waistDate,
+                                        waistCm = waistValue
                                     )
-                                    waistCm = ""
-                                    waistErrorText = null
-                                    activePanel = null
-                                }
+                                )
+                                onDismiss()
                             }
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save")
-                }
-
-                HorizontalDivider()
-
-                Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-                if (waistEntriesToday.isEmpty()) {
-                    Text("No logs yet.")
-                } else {
-                    waistEntriesToday.forEach { entry ->
-                        WaistEntryRow(entry)
                     }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save")
+            }
+
+            HorizontalDivider()
+
+            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
+
+            if (waistEntriesToday.isEmpty()) {
+                Text("No logs yet.")
+            } else {
+                waistEntriesToday.forEach { entry ->
+                    WaistEntryRow(entry)
                 }
             }
         }
     }
+}
 
-    if (activePanel == LogPanel.STEPS) {
-        AppDialogCard(
-            title = "Log your steps",
-            onDismiss = { activePanel = null }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = stepsDate,
-                    onValueChange = { stepsDate = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Date (yyyy-mm-dd)") },
-                    singleLine = true
-                )
+@Composable
+private fun StepsDialog(
+    today: String,
+    stepsEntryToday: DailyStepsEntry?,
+    onDismiss: () -> Unit
+) {
+    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
+    val repository = app.repository
+    val scope = rememberCoroutineScope()
 
-                OutlinedTextField(
-                    value = stepsValue,
-                    onValueChange = { stepsValue = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Steps") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
+    var stepsDate by remember { mutableStateOf(today) }
+    var stepsValue by remember { mutableStateOf("") }
+    var errorText by remember { mutableStateOf<String?>(null) }
 
-                stepsErrorText?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
+    AppDialogCard(
+        title = "Log your steps",
+        onDismiss = onDismiss
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = stepsDate,
+                onValueChange = { stepsDate = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Date (yyyy-mm-dd)") },
+                singleLine = true
+            )
 
-                Button(
-                    onClick = {
-                        val parsedSteps = stepsValue.toIntOrNull()
+            OutlinedTextField(
+                value = stepsValue,
+                onValueChange = { stepsValue = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Steps") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
 
-                        when {
-                            stepsDate.isBlank() -> stepsErrorText = "Enter a date."
-                            parsedSteps == null -> stepsErrorText = "Steps must be a whole number."
-                            else -> {
-                                scope.launch {
-                                    repository.upsertDailySteps(
-                                        DailyStepsEntry(
-                                            entryDate = stepsDate,
-                                            steps = parsedSteps
-                                        )
+            errorText?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            Button(
+                onClick = {
+                    val parsedSteps = stepsValue.toIntOrNull()
+
+                    when {
+                        stepsDate.isBlank() -> errorText = "Enter a date."
+                        parsedSteps == null -> errorText = "Steps must be a whole number."
+                        else -> {
+                            scope.launch {
+                                repository.upsertDailySteps(
+                                    DailyStepsEntry(
+                                        entryDate = stepsDate,
+                                        steps = parsedSteps
                                     )
-                                    stepsValue = ""
-                                    stepsErrorText = null
-                                    activePanel = null
-                                }
+                                )
+                                onDismiss()
                             }
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save")
-                }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save")
+            }
 
-                HorizontalDivider()
+            HorizontalDivider()
 
-                Text("Today's logs", style = MaterialTheme.typography.titleSmall)
+            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
 
-                if (stepsEntryToday == null) {
-                    Text("No logs yet.")
-                } else {
-                    Text("Steps: ${stepsEntryToday!!.steps}")
-                }
+            if (stepsEntryToday == null) {
+                Text("No logs yet.")
+            } else {
+                Text("Steps: ${stepsEntryToday.steps}")
             }
         }
+    }
+}
+
+@Composable
+private fun BrandLogButton(
+    label: String,
+    containerColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.fillMaxSize(),
+        shape = RoundedCornerShape(24.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = containerColor,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium
+        )
     }
 }
 
@@ -659,7 +789,10 @@ private fun FoodEntryRow(entry: FoodDrinkEntry) {
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text("${entry.timeSlot} • ${entry.entryType.label()}", style = MaterialTheme.typography.labelLarge)
+            Text(
+                "${entry.timeSlot} • ${entry.entryType.label()}",
+                style = MaterialTheme.typography.labelLarge
+            )
             Text(entry.name, style = MaterialTheme.typography.titleMedium)
             Text("Calories: ${entry.calories}")
             entry.proteinGrams?.let { Text("Protein: $it g") }
