@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,7 +26,9 @@ import com.example.protocoltracker.domain.metrics.TrendDirection
 import com.example.protocoltracker.ui.common.AppPageTitle
 import com.example.protocoltracker.ui.common.CompactMetricCard
 import com.example.protocoltracker.ui.common.QuickAddFab
-import com.example.protocoltracker.ui.common.SectionCard
+import com.example.protocoltracker.ui.theme.BrandGray
+import com.example.protocoltracker.ui.theme.BrandOrange
+import com.example.protocoltracker.ui.theme.BrandTeal
 import java.time.LocalDate
 import java.util.Locale
 
@@ -39,6 +43,8 @@ fun HomeScreen(
     val todayString = today.toString()
     val currentWeekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1L)
     val previousWeekStart = currentWeekStart.minusDays(7)
+
+    val sessionQuote = remember { app.sessionQuote }
 
     val foodEntries by remember { repository.observeFoodDrinkEntries() }.collectAsState(initial = emptyList())
     val workoutEntries by remember { repository.observeWorkoutEntries() }.collectAsState(initial = emptyList())
@@ -206,15 +212,59 @@ fun HomeScreen(
             }
 
             if (missingItems.isNotEmpty()) {
-                SectionCard(
-                    title = "Due today"
-                ) {
-                    Text(
-                        text = "Still missing: ${missingItems.joinToString(", ")}.",
-                        style = MaterialTheme.typography.bodyMedium
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = BrandTeal.copy(alpha = 0.14f)
                     )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Due today",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = BrandTeal
+                        )
+                        Text(
+                            text = "Still missing: ${missingItems.joinToString(", ")}.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = BrandGray
+                        )
+                    }
                 }
             }
+
+            QuoteCard(quote = sessionQuote)
+        }
+    }
+}
+
+@Composable
+private fun QuoteCard(
+    quote: HomeQuote
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = BrandOrange.copy(alpha = 0.14f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "\"${quote.text}\"",
+                style = MaterialTheme.typography.bodyMedium,
+                color = BrandGray
+            )
+            Text(
+                text = "- ${quote.author}",
+                style = MaterialTheme.typography.bodySmall,
+                color = BrandGray.copy(alpha = 0.75f)
+            )
         }
     }
 }
@@ -242,8 +292,8 @@ private fun formatDelta(change: MetricChange): String? {
 
 private fun deltaColor(change: MetricChange): Color? =
     when (change.direction) {
-        TrendDirection.BETTER -> Color(0xFF2E7D32)
-        TrendDirection.WORSE -> Color(0xFFC62828)
+        TrendDirection.BETTER -> BrandTeal
+        TrendDirection.WORSE -> BrandOrange
         TrendDirection.SAME,
         TrendDirection.NONE -> null
     }

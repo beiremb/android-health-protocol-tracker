@@ -5,6 +5,8 @@ import com.example.protocoltracker.background.reminder.ReminderScheduler
 import com.example.protocoltracker.data.local.AppDatabase
 import com.example.protocoltracker.data.repository.ProtocolTrackerRepository
 import com.example.protocoltracker.data.settings.SettingsRepository
+import com.example.protocoltracker.ui.home.HomeQuote
+import com.example.protocoltracker.ui.home.HomeQuotes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +22,10 @@ class ProtocolTrackerApp : Application() {
 
     lateinit var settingsRepository: SettingsRepository
         private set
+
+    val sessionQuote: HomeQuote by lazy {
+        HomeQuotes.nextQuote(this)
+    }
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

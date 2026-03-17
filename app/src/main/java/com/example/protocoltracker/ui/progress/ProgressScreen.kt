@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.ButtonDefaults
 import com.example.protocoltracker.ProtocolTrackerApp
 import com.example.protocoltracker.data.local.entity.DailyStepsEntry
 import com.example.protocoltracker.data.local.entity.FoodDrinkEntry
@@ -49,6 +50,8 @@ import com.example.protocoltracker.domain.metrics.WeeklyMetrics
 import com.example.protocoltracker.ui.common.AppPageTitle
 import com.example.protocoltracker.ui.common.CompactMetricCard
 import com.example.protocoltracker.ui.common.SectionCard
+import com.example.protocoltracker.ui.theme.BrandOrange
+import com.example.protocoltracker.ui.theme.BrandTeal
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -219,7 +222,13 @@ fun ProgressScreen() {
                     Button(
                         onClick = { chartMode = ChartMode.DAILY },
                         modifier = Modifier.weight(1f),
-                        enabled = chartMode != ChartMode.DAILY
+                        enabled = chartMode != ChartMode.DAILY,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary,
+                            disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
+                            disabledContentColor = MaterialTheme.colorScheme.secondary
+                        )
                     ) {
                         Text("Daily")
                     }
@@ -227,7 +236,13 @@ fun ProgressScreen() {
                     Button(
                         onClick = { chartMode = ChartMode.WEEKLY },
                         modifier = Modifier.weight(1f),
-                        enabled = chartMode != ChartMode.WEEKLY
+                        enabled = chartMode != ChartMode.WEEKLY,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary,
+                            disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
+                            disabledContentColor = MaterialTheme.colorScheme.secondary
+                        )
                     ) {
                         Text("Weekly")
                     }
@@ -874,8 +889,8 @@ private fun formatDelta(change: MetricChange): String? {
 
 private fun deltaColor(change: MetricChange): Color? =
     when (change.direction) {
-        TrendDirection.BETTER -> Color(0xFF2E7D32)
-        TrendDirection.WORSE -> Color(0xFFC62828)
+        TrendDirection.BETTER -> BrandTeal
+        TrendDirection.WORSE -> BrandOrange
         TrendDirection.SAME,
         TrendDirection.NONE -> null
     }
