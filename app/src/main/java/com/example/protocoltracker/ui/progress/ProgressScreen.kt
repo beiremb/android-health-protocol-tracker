@@ -43,6 +43,7 @@ import com.example.protocoltracker.data.local.entity.MilestoneEntry
 import com.example.protocoltracker.data.local.entity.WaistEntry
 import com.example.protocoltracker.data.local.entity.WeightEntry
 import com.example.protocoltracker.data.local.entity.WorkoutEntry
+import com.example.protocoltracker.data.settings.AppSettings
 import com.example.protocoltracker.domain.metrics.DailyMetrics
 import com.example.protocoltracker.domain.metrics.MetricChange
 import com.example.protocoltracker.domain.metrics.MetricsCalculator
@@ -84,8 +85,11 @@ private data class ChartPoint(
 fun ProgressScreen() {
     val app = LocalContext.current.applicationContext as ProtocolTrackerApp
     val repository = app.repository
+    val settingsRepository = app.settingsRepository
     val scope = rememberCoroutineScope()
     val today = LocalDate.now().toString()
+
+    val settings by settingsRepository.settingsFlow.collectAsState(initial = AppSettings())
 
     val weightEntries by remember { repository.observeWeightEntries() }.collectAsState(initial = emptyList())
     val foodEntries by remember { repository.observeFoodDrinkEntries() }.collectAsState(initial = emptyList())
@@ -159,6 +163,13 @@ fun ProgressScreen() {
                 weeklyMetrics = weeklyMetrics
             )
         }
+    }
+
+    val fixedWeightChartMin = settings.weightChartMinKg
+    val fixedWeightChartMax = if (settings.weightChartMaxKg > settings.weightChartMinKg) {
+        settings.weightChartMaxKg
+    } else {
+        settings.weightChartMinKg + 1.0
     }
 
     LazyColumn(
@@ -297,7 +308,9 @@ fun ProgressScreen() {
                 MetricChartCard(
                     title = chartTitle(selectedMetric, chartMode),
                     points = chartPoints,
-                    valueFormatter = { value -> formatMetricValue(selectedMetric, value) }
+                    valueFormatter = { value -> formatMetricValue(selectedMetric, value) },
+                    fixedMinValue = if (selectedMetric == ProgressMetric.WEIGHT) fixedWeightChartMin else null,
+                    fixedMaxValue = if (selectedMetric == ProgressMetric.WEIGHT) fixedWeightChartMax else null
                 )
             }
         }
@@ -476,7 +489,9 @@ private fun RowScope.MetricChip(
 private fun MetricChartCard(
     title: String,
     points: List<ChartPoint>,
-    valueFormatter: (Double) -> String
+    valueFormatter: (Double) -> String,
+    fixedMinValue: Double? = null,
+    fixedMaxValue: Double? = null
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -493,58 +508,90 @@ private fun MetricChartCard(
                 return@Column
             }
 
+            val rawMinValue = points.minOf { it.value }
+            val rawMaxValue = points.maxOf { it.value }
+            val displayMinValue = fixedMinValue ?: rawMinValue
+            val displayMaxValue = fixedMaxValue ?: rawMaxValue
+            val plottedMinValue = displayMinValue
+            val plottedMaxValue = if (displayMaxValue > displayMinValue) {
+                displayMaxValue
+            } else {
+                displayMinValue + 1.0
+            }
+
             val lineColor = MaterialTheme.colorScheme.primary
             val pointColor = MaterialTheme.colorScheme.primary
             val axisColor = MaterialTheme.colorScheme.outline
 
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val padding = 24f
-                val width = size.width - padding * 2
-                val height = size.height - padding * 2
+                Column(
+                    modifier = Modifier.height(220.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = valueFormatter(displayMaxValue),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = valueFormatter(displayMinValue),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-                drawLine(
-                    color = axisColor,
-                    start = Offset(padding, size.height - padding),
-                    end = Offset(size.width - padding, size.height - padding),
-                    strokeWidth = 2f
-                )
+                Canvas(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(220.dp)
+                ) {
+                    val padding = 24f
+                    val width = size.width - padding * 2
+                    val height = size.height - padding * 2
+                    val valueRange = plottedMaxValue - plottedMinValue
 
-                val minValue = points.minOf { it.value }
-                val maxValue = points.maxOf { it.value }
-                val valueRange = if (maxValue - minValue == 0.0) 1.0 else maxValue - minValue
+                    drawLine(
+                        color = axisColor,
+                        start = Offset(padding, size.height - padding),
+                        end = Offset(size.width - padding, size.height - padding),
+                        strokeWidth = 2f
+                    )
 
-                val offsets = points.mapIndexed { index, point ->
-                    val x = if (points.size == 1) {
-                        padding + width / 2f
-                    } else {
-                        padding + (index.toFloat() / points.lastIndex.coerceAtLeast(1)) * width
+                    val offsets = points.mapIndexed { index, point ->
+                        val x = if (points.size == 1) {
+                            padding + width / 2f
+                        } else {
+                            padding + (index.toFloat() / points.lastIndex.coerceAtLeast(1)) * width
+                        }
+
+                        val normalized = ((point.value - plottedMinValue) / valueRange)
+                            .toFloat()
+                            .coerceIn(0f, 1f)
+
+                        val y = (size.height - padding) - (normalized * height)
+                        Offset(x, y)
                     }
 
-                    val normalized = ((point.value - minValue) / valueRange).toFloat()
-                    val y = (size.height - padding) - (normalized * height)
-                    Offset(x, y)
-                }
+                    offsets.zipWithNext().forEach { (start, end) ->
+                        drawLine(
+                            color = lineColor,
+                            start = start,
+                            end = end,
+                            strokeWidth = 6f,
+                            cap = StrokeCap.Round
+                        )
+                    }
 
-                offsets.zipWithNext().forEach { (start, end) ->
-                    drawLine(
-                        color = lineColor,
-                        start = start,
-                        end = end,
-                        strokeWidth = 6f,
-                        cap = StrokeCap.Round
-                    )
-                }
-
-                offsets.forEach { offset ->
-                    drawCircle(
-                        color = pointColor,
-                        radius = 7f,
-                        center = offset
-                    )
+                    offsets.forEach { offset ->
+                        drawCircle(
+                            color = pointColor,
+                            radius = 7f,
+                            center = offset
+                        )
+                    }
                 }
             }
 

@@ -36,6 +36,9 @@ import com.example.protocoltracker.ProtocolTrackerApp
 import com.example.protocoltracker.background.reminder.ReminderScheduler
 import com.example.protocoltracker.data.settings.AppSettings
 import kotlinx.coroutines.launch
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen() {
@@ -62,6 +65,12 @@ fun SettingsScreen() {
     var fastingStart by rememberSaveable(settings.fastingStart) { mutableStateOf(settings.fastingStart) }
     var fastingEnd by rememberSaveable(settings.fastingEnd) { mutableStateOf(settings.fastingEnd) }
     var reminderTime by rememberSaveable(settings.reminderTime) { mutableStateOf(settings.reminderTime) }
+    var weightChartMin by rememberSaveable(settings.weightChartMinKg) {
+        mutableStateOf(formatSettingNumber(settings.weightChartMinKg))
+    }
+    var weightChartMax by rememberSaveable(settings.weightChartMaxKg) {
+        mutableStateOf(formatSettingNumber(settings.weightChartMaxKg))
+    }
 
     var statusText by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -136,6 +145,22 @@ fun SettingsScreen() {
 
         item {
             SectionCard(
+                title = "Chart",
+                subtitle = "Weight chart uses this fixed Y-axis range."
+            ) {
+                SettingFieldRow(
+                    leftLabel = "Weight min (kg)",
+                    leftValue = weightChartMin,
+                    onLeftChange = { weightChartMin = it },
+                    rightLabel = "Weight max (kg)",
+                    rightValue = weightChartMax,
+                    onRightChange = { weightChartMax = it }
+                )
+            }
+        }
+
+        item {
+            SectionCard(
                 title = "Reminders",
                 subtitle = "Only sends a reminder when nothing was logged that day."
             ) {
@@ -179,20 +204,38 @@ fun SettingsScreen() {
                     val parsedGoalWeight = goalWeight.toDoubleOrNull()
                     val parsedCalorieBudget = calorieBudget.toIntOrNull()
                     val parsedProteinTarget = proteinTarget.toIntOrNull()
+                    val parsedWeightChartMin = weightChartMin.toDoubleOrNull()
+                    val parsedWeightChartMax = weightChartMax.toDoubleOrNull()
 
                     when {
                         startWeight.isNotBlank() && parsedStartWeight == null -> {
                             statusText = "Start weight must be a number"
                         }
+
                         goalWeight.isNotBlank() && parsedGoalWeight == null -> {
                             statusText = "Goal weight must be a number"
                         }
+
                         calorieBudget.isNotBlank() && parsedCalorieBudget == null -> {
                             statusText = "Calorie budget must be a whole number"
                         }
+
                         proteinTarget.isNotBlank() && parsedProteinTarget == null -> {
                             statusText = "Protein target must be a whole number"
                         }
+
+                        parsedWeightChartMin == null -> {
+                            statusText = "Weight chart min must be a number"
+                        }
+
+                        parsedWeightChartMax == null -> {
+                            statusText = "Weight chart max must be a number"
+                        }
+
+                        parsedWeightChartMin >= parsedWeightChartMax -> {
+                            statusText = "Weight chart min must be lower than max"
+                        }
+
                         else -> {
                             scope.launch {
                                 settingsRepository.setStartDate(startDate.trim())
@@ -203,6 +246,8 @@ fun SettingsScreen() {
                                 settingsRepository.setFastingStart(fastingStart.trim())
                                 settingsRepository.setFastingEnd(fastingEnd.trim())
                                 settingsRepository.setReminderTime(reminderTime.trim())
+                                settingsRepository.setWeightChartMinKg(parsedWeightChartMin)
+                                settingsRepository.setWeightChartMaxKg(parsedWeightChartMax)
                                 ReminderScheduler.schedule(context)
                                 statusText = "Settings saved"
                             }
@@ -369,4 +414,13 @@ private fun getAppVersionName(context: Context): String {
         }
         packageInfo.versionName ?: "dev"
     }.getOrDefault("dev")
+}
+
+private fun formatSettingNumber(value: Double): String {
+    val rounded = value.roundToInt().toDouble()
+    return if (abs(value - rounded) < 0.0001) {
+        rounded.toInt().toString()
+    } else {
+        String.format(Locale.US, "%.1f", value)
+    }
 }

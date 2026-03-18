@@ -8,5 +8,7 @@ data class AppSettings(
     val proteinTarget: Int? = null,
     val fastingStart: String = "13:00",
     val fastingEnd: String = "21:00",
-    val reminderTime: String = "20:00"
+    val reminderTime: String = "20:00",
+    val weightChartMinKg: Double = 50.0,
+    val weightChartMaxKg: Double = 150.0
 )

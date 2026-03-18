@@ -19,6 +19,8 @@ class SettingsRepository(private val context: Context) {
         val fastingStart = stringPreferencesKey("fasting_start")
         val fastingEnd = stringPreferencesKey("fasting_end")
         val reminderTime = stringPreferencesKey("reminder_time")
+        val weightChartMinKg = doublePreferencesKey("weight_chart_min_kg")
+        val weightChartMaxKg = doublePreferencesKey("weight_chart_max_kg")
     }
 
     val settingsFlow: Flow<AppSettings> = context.settingsDataStore.data.map { prefs ->
@@ -30,7 +32,9 @@ class SettingsRepository(private val context: Context) {
             proteinTarget = prefs[Keys.proteinTarget],
             fastingStart = prefs[Keys.fastingStart] ?: "13:00",
             fastingEnd = prefs[Keys.fastingEnd] ?: "21:00",
-            reminderTime = prefs[Keys.reminderTime] ?: "20:00"
+            reminderTime = prefs[Keys.reminderTime] ?: "20:00",
+            weightChartMinKg = prefs[Keys.weightChartMinKg] ?: 50.0,
+            weightChartMaxKg = prefs[Keys.weightChartMaxKg] ?: 150.0
         )
     }
 
@@ -64,5 +68,13 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setReminderTime(value: String) {
         context.settingsDataStore.edit { it[Keys.reminderTime] = value }
+    }
+
+    suspend fun setWeightChartMinKg(value: Double) {
+        context.settingsDataStore.edit { it[Keys.weightChartMinKg] = value }
+    }
+
+    suspend fun setWeightChartMaxKg(value: Double) {
+        context.settingsDataStore.edit { it[Keys.weightChartMaxKg] = value }
     }
 }
