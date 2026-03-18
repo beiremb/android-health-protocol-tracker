@@ -1,11 +1,13 @@
 package com.example.protocoltracker.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +17,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -24,14 +29,24 @@ import com.example.protocoltracker.domain.metrics.MetricChange
 import com.example.protocoltracker.domain.metrics.MetricsCalculator
 import com.example.protocoltracker.domain.metrics.TrendDirection
 import com.example.protocoltracker.ui.common.AppPageTitle
-import com.example.protocoltracker.ui.common.CompactMetricCard
-import com.example.protocoltracker.ui.common.QuickAddFab
 import com.example.protocoltracker.ui.theme.BrandGray
 import com.example.protocoltracker.ui.theme.BrandOrange
 import com.example.protocoltracker.ui.theme.BrandTeal
+import com.example.protocoltracker.ui.theme.BrandWhite
 import java.time.LocalDate
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
+private enum class HomeCardMode {
+    DAILY,
+    WEEKLY
+}
+
+private fun HomeCardMode.toggle(): HomeCardMode =
+    if (this == HomeCardMode.DAILY) HomeCardMode.WEEKLY else HomeCardMode.DAILY
+
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun HomeScreen(
     onOpenLog: () -> Unit
@@ -45,6 +60,13 @@ fun HomeScreen(
     val previousWeekStart = currentWeekStart.minusDays(7)
 
     val sessionQuote = remember { app.sessionQuote }
+
+    var weightMode by rememberSaveable { mutableStateOf(HomeCardMode.DAILY) }
+    var waistMode by rememberSaveable { mutableStateOf(HomeCardMode.DAILY) }
+    var caloriesMode by rememberSaveable { mutableStateOf(HomeCardMode.DAILY) }
+    var fastingMode by rememberSaveable { mutableStateOf(HomeCardMode.DAILY) }
+    var stepsMode by rememberSaveable { mutableStateOf(HomeCardMode.DAILY) }
+    var workoutMode by rememberSaveable { mutableStateOf(HomeCardMode.DAILY) }
 
     val foodEntries by remember { repository.observeFoodDrinkEntries() }.collectAsState(initial = emptyList())
     val workoutEntries by remember { repository.observeWorkoutEntries() }.collectAsState(initial = emptyList())
@@ -125,10 +147,7 @@ fun HomeScreen(
     }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        floatingActionButton = {
-            QuickAddFab(onClick = onOpenLog)
-        }
+        modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -139,28 +158,32 @@ fun HomeScreen(
         ) {
             AppPageTitle(
                 title = "Home",
-                subtitle = "Your main numbers for today and this week."
+                subtitle = "Tap a card to switch between daily and weekly."
             )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                CompactMetricCard(
+                HomeMetricToggleCard(
                     title = "Weight",
-                    primary = dailyMetrics.latestWeightKg?.let { "${formatNumber(it)} kg" } ?: "—",
-                    secondary = weeklyMetrics.averageWeightKg?.let { "Week avg ${formatNumber(it)} kg" } ?: "No week avg",
-                    delta = formatDelta(changes.weight),
-                    deltaColor = deltaColor(changes.weight),
+                    mode = weightMode,
+                    onToggle = { weightMode = weightMode.toggle() },
+                    dailyValue = dailyMetrics.latestWeightKg?.let { "${formatSmartNumber(it)} kg" } ?: "—",
+                    weeklyValue = weeklyMetrics.averageWeightKg?.let { "${formatSmartNumber(it)} kg" } ?: "—",
+                    weeklyDelta = formatDelta(changes.weight, wholeOnly = false),
+                    weeklyDeltaColor = deltaColor(changes.weight),
                     modifier = Modifier.weight(1f)
                 )
 
-                CompactMetricCard(
+                HomeMetricToggleCard(
                     title = "Waist",
-                    primary = dailyMetrics.latestWaistCm?.let { "${formatNumber(it)} cm" } ?: "—",
-                    secondary = "Weekly measure",
-                    delta = formatDelta(changes.waist),
-                    deltaColor = deltaColor(changes.waist),
+                    mode = waistMode,
+                    onToggle = { waistMode = waistMode.toggle() },
+                    dailyValue = dailyMetrics.latestWaistCm?.let { "${formatSmartNumber(it)} cm" } ?: "—",
+                    weeklyValue = weeklyMetrics.latestWaistCm?.let { "${formatSmartNumber(it)} cm" } ?: "—",
+                    weeklyDelta = formatDelta(changes.waist, wholeOnly = false),
+                    weeklyDeltaColor = deltaColor(changes.waist),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -169,21 +192,25 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                CompactMetricCard(
+                HomeMetricToggleCard(
                     title = "Calories",
-                    primary = "${dailyMetrics.totalCalories}",
-                    secondary = "Week avg ${formatNumber(weeklyMetrics.averageDailyCalories)}",
-                    delta = formatDelta(changes.calories),
-                    deltaColor = deltaColor(changes.calories),
+                    mode = caloriesMode,
+                    onToggle = { caloriesMode = caloriesMode.toggle() },
+                    dailyValue = formatWholeNumber(dailyMetrics.totalCalories),
+                    weeklyValue = formatWholeDouble(weeklyMetrics.averageDailyCalories),
+                    weeklyDelta = formatDelta(changes.calories, wholeOnly = true),
+                    weeklyDeltaColor = deltaColor(changes.calories),
                     modifier = Modifier.weight(1f)
                 )
 
-                CompactMetricCard(
+                HomeMetricToggleCard(
                     title = "Hours fasted",
-                    primary = formatHours(currentFastingHours),
-                    secondary = "Week avg ${formatHours(weeklyMetrics.averageDailyFastingHours)}",
-                    delta = formatDelta(changes.fastingHours),
-                    deltaColor = deltaColor(changes.fastingHours),
+                    mode = fastingMode,
+                    onToggle = { fastingMode = fastingMode.toggle() },
+                    dailyValue = formatHours(currentFastingHours),
+                    weeklyValue = formatHours(weeklyMetrics.averageDailyFastingHours),
+                    weeklyDelta = formatDelta(changes.fastingHours, wholeOnly = false),
+                    weeklyDeltaColor = deltaColor(changes.fastingHours),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -192,51 +219,146 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                CompactMetricCard(
+                HomeMetricToggleCard(
                     title = "Steps",
-                    primary = formatWholeNumber(dailyMetrics.steps),
-                    secondary = "Week avg ${formatWholeNumber(weeklyMetrics.averageDailySteps.toInt())}",
-                    delta = formatDelta(changes.steps),
-                    deltaColor = deltaColor(changes.steps),
+                    mode = stepsMode,
+                    onToggle = { stepsMode = stepsMode.toggle() },
+                    dailyValue = formatWholeNumber(dailyMetrics.steps),
+                    weeklyValue = formatWholeDouble(weeklyMetrics.averageDailySteps),
+                    weeklyDelta = formatDelta(changes.steps, wholeOnly = true),
+                    weeklyDeltaColor = deltaColor(changes.steps),
                     modifier = Modifier.weight(1f)
                 )
 
-                CompactMetricCard(
+                HomeMetricToggleCard(
                     title = "Workout",
-                    primary = "${dailyMetrics.workoutMinutes} min",
-                    secondary = "Week total ${weeklyMetrics.totalWorkoutMinutes} min",
-                    delta = formatDelta(changes.workoutMinutes),
-                    deltaColor = deltaColor(changes.workoutMinutes),
+                    mode = workoutMode,
+                    onToggle = { workoutMode = workoutMode.toggle() },
+                    dailyValue = "${formatWholeNumber(dailyMetrics.workoutMinutes)} min",
+                    weeklyValue = "${formatWholeNumber(weeklyMetrics.totalWorkoutMinutes)} min",
+                    weeklyDelta = formatDelta(changes.workoutMinutes, wholeOnly = true),
+                    weeklyDeltaColor = deltaColor(changes.workoutMinutes),
                     modifier = Modifier.weight(1f)
                 )
             }
 
             if (missingItems.isNotEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = BrandTeal.copy(alpha = 0.14f)
+                DueTodayCard(
+                    missingItems = missingItems
+                )
+            }
+
+            QuoteCard(
+                quote = sessionQuote
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeMetricToggleCard(
+    title: String,
+    mode: HomeCardMode,
+    onToggle: () -> Unit,
+    dailyValue: String,
+    weeklyValue: String,
+    weeklyDelta: String?,
+    weeklyDeltaColor: Color?,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (mode == HomeCardMode.DAILY) BrandTeal else BrandOrange
+
+    Card(
+        modifier = modifier.clickable(onClick = onToggle),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = BrandWhite
+                )
+
+                if (mode == HomeCardMode.WEEKLY && !weeklyDelta.isNullOrBlank()) {
+                    DeltaBadge(
+                        text = weeklyDelta,
+                        color = weeklyDeltaColor ?: BrandGray
                     )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "Due today",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = BrandTeal
-                        )
-                        Text(
-                            text = "Still missing: ${missingItems.joinToString(", ")}.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = BrandGray
-                        )
-                    }
                 }
             }
 
-            QuoteCard(quote = sessionQuote)
+            Text(
+                text = if (mode == HomeCardMode.DAILY) dailyValue else weeklyValue,
+                style = MaterialTheme.typography.headlineSmall,
+                color = BrandWhite
+            )
+
+            Text(
+                text = if (mode == HomeCardMode.DAILY) "Today" else "This week",
+                style = MaterialTheme.typography.labelMedium,
+                color = BrandWhite.copy(alpha = 0.85f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeltaBadge(
+    text: String,
+    color: Color
+) {
+    Card(
+        shape = RoundedCornerShape(999.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = BrandWhite
+        )
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = color
+        )
+    }
+}
+
+@Composable
+private fun DueTodayCard(
+    missingItems: List<String>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = BrandOrange.copy(alpha = 0.14f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "Due today",
+                style = MaterialTheme.typography.titleMedium,
+                color = BrandGray
+            )
+            Text(
+                text = "Still missing: ${missingItems.joinToString(", ")}.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = BrandGray
+            )
         }
     }
 }
@@ -247,45 +369,67 @@ private fun QuoteCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(
+            topStart = 32.dp,
+            topEnd = 32.dp,
+            bottomStart = 20.dp,
+            bottomEnd = 20.dp
+        ),
         colors = CardDefaults.cardColors(
-            containerColor = BrandOrange.copy(alpha = 0.14f)
+            containerColor = BrandGray
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 text = "\"${quote.text}\"",
-                style = MaterialTheme.typography.bodyMedium,
-                color = BrandGray
+                style = MaterialTheme.typography.titleMedium,
+                color = BrandWhite
             )
             Text(
                 text = "- ${quote.author}",
                 style = MaterialTheme.typography.bodySmall,
-                color = BrandGray.copy(alpha = 0.75f)
+                color = BrandWhite.copy(alpha = 0.78f)
             )
         }
     }
 }
 
-private fun formatNumber(value: Double): String =
-    String.format(Locale.US, "%.1f", value)
+private fun formatSmartNumber(value: Double): String {
+    val rounded = value.roundToInt().toDouble()
+    return if (abs(value - rounded) < 0.0001) {
+        rounded.toInt().toString()
+    } else {
+        String.format(Locale.US, "%.1f", value)
+    }
+}
+
+private fun formatWholeDouble(value: Double): String =
+    value.roundToInt().toString()
 
 private fun formatWholeNumber(value: Int): String =
-    String.format(Locale.US, "%d", value)
+    value.toString()
 
 private fun formatHours(value: Double): String =
-    "${formatNumber(value)} h"
+    "${formatSmartNumber(value)} h"
 
-private fun formatDelta(change: MetricChange): String? {
+private fun formatDelta(
+    change: MetricChange,
+    wholeOnly: Boolean
+): String? {
     val delta = change.delta ?: return null
-    if (delta == 0.0) return "0.0"
+    val formatted = if (wholeOnly) {
+        formatWholeDouble(abs(delta))
+    } else {
+        formatSmartNumber(abs(delta))
+    }
 
     return when (change.direction) {
-        TrendDirection.BETTER -> "↑ ${formatNumber(kotlin.math.abs(delta))}"
-        TrendDirection.WORSE -> "↓ ${formatNumber(kotlin.math.abs(delta))}"
-        TrendDirection.SAME -> "0.0"
+        TrendDirection.BETTER -> "↑ $formatted"
+        TrendDirection.WORSE -> "↓ $formatted"
+        TrendDirection.SAME -> "0"
         TrendDirection.NONE -> null
     }
 }
@@ -294,6 +438,6 @@ private fun deltaColor(change: MetricChange): Color? =
     when (change.direction) {
         TrendDirection.BETTER -> BrandTeal
         TrendDirection.WORSE -> BrandOrange
-        TrendDirection.SAME,
+        TrendDirection.SAME -> BrandGray
         TrendDirection.NONE -> null
     }
