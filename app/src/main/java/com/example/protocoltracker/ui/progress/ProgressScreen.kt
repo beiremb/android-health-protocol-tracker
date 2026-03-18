@@ -1,5 +1,6 @@
 package com.example.protocoltracker.ui.progress
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,7 +36,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.material3.ButtonDefaults
 import com.example.protocoltracker.ProtocolTrackerApp
 import com.example.protocoltracker.data.local.entity.DailyStepsEntry
 import com.example.protocoltracker.data.local.entity.FoodDrinkEntry
@@ -50,6 +51,7 @@ import com.example.protocoltracker.domain.metrics.WeeklyMetrics
 import com.example.protocoltracker.ui.common.AppPageTitle
 import com.example.protocoltracker.ui.common.CompactMetricCard
 import com.example.protocoltracker.ui.common.SectionCard
+import com.example.protocoltracker.ui.theme.BrandGray
 import com.example.protocoltracker.ui.theme.BrandOrange
 import com.example.protocoltracker.ui.theme.BrandTeal
 import kotlinx.coroutines.launch
@@ -57,6 +59,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private enum class ChartMode {
     DAILY,
@@ -100,6 +103,7 @@ fun ProgressScreen() {
         showMilestoneDialog = false
         editingMilestoneId = null
     }
+
     val dailyMetrics = remember(today, foodEntries, workoutEntries, weightEntries, waistEntries, stepsEntries) {
         MetricsCalculator.calculateDailyMetrics(
             date = today,
@@ -173,35 +177,41 @@ fun ProgressScreen() {
             SectionCard(title = "Overview") {
                 MetricRow(
                     title1 = "Weight",
-                    primary1 = currentWeek?.averageWeightKg?.let { "${formatDouble(it)} kg" } ?: "—",
-                    secondary1 = dailyMetrics.latestWeightKg?.let { "Today ${formatDouble(it)} kg" } ?: "Today —",
+                    primary1 = currentWeek?.averageWeightKg?.let { "${formatSmartNumber(it)} kg" } ?: "—",
+                    secondary1 = dailyMetrics.latestWeightKg?.let { "Today ${formatSmartNumber(it)} kg" } ?: "Today —",
                     change1 = weeklyChanges?.weight,
+                    change1WholeOnly = false,
                     title2 = "Waist",
-                    primary2 = currentWeek?.latestWaistCm?.let { "${formatDouble(it)} cm" } ?: "—",
+                    primary2 = currentWeek?.latestWaistCm?.let { "${formatSmartNumber(it)} cm" } ?: "—",
                     secondary2 = "Latest weekly measure",
-                    change2 = weeklyChanges?.waist
+                    change2 = weeklyChanges?.waist,
+                    change2WholeOnly = false
                 )
 
                 MetricRow(
                     title1 = "Calories",
-                    primary1 = currentWeek?.let { formatDouble(it.averageDailyCalories) } ?: "—",
+                    primary1 = currentWeek?.let { formatWholeDouble(it.averageDailyCalories) } ?: "—",
                     secondary1 = "Today ${dailyMetrics.totalCalories}",
                     change1 = weeklyChanges?.calories,
+                    change1WholeOnly = true,
                     title2 = "Steps",
-                    primary2 = currentWeek?.let { formatDouble(it.averageDailySteps) } ?: "—",
+                    primary2 = currentWeek?.let { formatWholeDouble(it.averageDailySteps) } ?: "—",
                     secondary2 = "Today ${dailyMetrics.steps}",
-                    change2 = weeklyChanges?.steps
+                    change2 = weeklyChanges?.steps,
+                    change2WholeOnly = true
                 )
 
                 MetricRow(
                     title1 = "Hours fasted",
-                    primary1 = currentWeek?.let { formatDouble(it.averageDailyFastingHours) } ?: "—",
-                    secondary1 = "Now ${formatDouble(currentFastingHours)} h",
+                    primary1 = currentWeek?.let { formatSmartNumber(it.averageDailyFastingHours) } ?: "—",
+                    secondary1 = "Now ${formatSmartNumber(currentFastingHours)} h",
                     change1 = weeklyChanges?.fastingHours,
+                    change1WholeOnly = false,
                     title2 = "Workout",
                     primary2 = currentWeek?.let { "${it.totalWorkoutMinutes} min" } ?: "—",
                     secondary2 = "Today ${dailyMetrics.workoutMinutes} min",
-                    change2 = weeklyChanges?.workoutMinutes
+                    change2 = weeklyChanges?.workoutMinutes,
+                    change2WholeOnly = true
                 )
 
                 CompactMetricCard(
@@ -224,10 +234,10 @@ fun ProgressScreen() {
                         modifier = Modifier.weight(1f),
                         enabled = chartMode != ChartMode.DAILY,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary,
-                            disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
-                            disabledContentColor = MaterialTheme.colorScheme.secondary
+                            containerColor = BrandTeal,
+                            contentColor = Color.White,
+                            disabledContainerColor = BrandTeal.copy(alpha = 0.18f),
+                            disabledContentColor = BrandTeal
                         )
                     ) {
                         Text("Daily")
@@ -238,10 +248,10 @@ fun ProgressScreen() {
                         modifier = Modifier.weight(1f),
                         enabled = chartMode != ChartMode.WEEKLY,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary,
-                            disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
-                            disabledContentColor = MaterialTheme.colorScheme.secondary
+                            containerColor = BrandTeal,
+                            contentColor = Color.White,
+                            disabledContainerColor = BrandTeal.copy(alpha = 0.18f),
+                            disabledContentColor = BrandTeal
                         )
                     ) {
                         Text("Weekly")
@@ -258,8 +268,17 @@ fun ProgressScreen() {
                     MetricChip("Calories", selectedMetric == ProgressMetric.CALORIES) {
                         selectedMetric = ProgressMetric.CALORIES
                     }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     MetricChip("Steps", selectedMetric == ProgressMetric.STEPS) {
                         selectedMetric = ProgressMetric.STEPS
+                    }
+                    MetricChip("Fasting", selectedMetric == ProgressMetric.FASTING) {
+                        selectedMetric = ProgressMetric.FASTING
                     }
                 }
 
@@ -267,9 +286,6 @@ fun ProgressScreen() {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    MetricChip("Fasting", selectedMetric == ProgressMetric.FASTING) {
-                        selectedMetric = ProgressMetric.FASTING
-                    }
                     MetricChip("Workout", selectedMetric == ProgressMetric.WORKOUT) {
                         selectedMetric = ProgressMetric.WORKOUT
                     }
@@ -280,7 +296,8 @@ fun ProgressScreen() {
 
                 MetricChartCard(
                     title = chartTitle(selectedMetric, chartMode),
-                    points = chartPoints
+                    points = chartPoints,
+                    valueFormatter = { value -> formatMetricValue(selectedMetric, value) }
                 )
             }
         }
@@ -298,7 +315,11 @@ fun ProgressScreen() {
                     onClick = {
                         editingMilestoneId = null
                         showMilestoneDialog = true
-                    }
+                    },
+                    border = BorderStroke(1.dp, BrandOrange),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = BrandOrange
+                    )
                 ) {
                     Text("Add")
                 }
@@ -390,10 +411,12 @@ private fun MetricRow(
     primary1: String,
     secondary1: String,
     change1: MetricChange?,
+    change1WholeOnly: Boolean,
     title2: String,
     primary2: String,
     secondary2: String,
-    change2: MetricChange?
+    change2: MetricChange?,
+    change2WholeOnly: Boolean
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -403,7 +426,7 @@ private fun MetricRow(
             title = title1,
             primary = primary1,
             secondary = secondary1,
-            delta = change1?.let(::formatDelta),
+            delta = change1?.let { formatDelta(it, change1WholeOnly) },
             deltaColor = change1?.let(::deltaColor),
             modifier = Modifier.weight(1f)
         )
@@ -411,7 +434,7 @@ private fun MetricRow(
             title = title2,
             primary = primary2,
             secondary = secondary2,
-            delta = change2?.let(::formatDelta),
+            delta = change2?.let { formatDelta(it, change2WholeOnly) },
             deltaColor = change2?.let(::deltaColor),
             modifier = Modifier.weight(1f)
         )
@@ -427,14 +450,22 @@ private fun RowScope.MetricChip(
     if (selected) {
         Button(
             onClick = onClick,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = BrandOrange,
+                contentColor = Color.White
+            )
         ) {
             Text(label)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            border = BorderStroke(1.dp, BrandOrange),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = BrandOrange
+            )
         ) {
             Text(label)
         }
@@ -444,7 +475,8 @@ private fun RowScope.MetricChip(
 @Composable
 private fun MetricChartCard(
     title: String,
-    points: List<ChartPoint>
+    points: List<ChartPoint>,
+    valueFormatter: (Double) -> String
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -517,7 +549,7 @@ private fun MetricChartCard(
             }
 
             points.takeLast(5).forEach { point ->
-                Text("${point.label}: ${formatDouble(point.value)}")
+                Text("${point.label}: ${valueFormatter(point.value)}")
             }
         }
     }
@@ -543,12 +575,12 @@ private fun WeeklyHistoryCard(
             ) {
                 WeeklyMiniStat(
                     label = "Weight",
-                    value = weekly.averageWeightKg?.let(::formatDouble) ?: "—",
+                    value = weekly.averageWeightKg?.let(::formatSmartNumber) ?: "—",
                     modifier = Modifier.weight(1f)
                 )
                 WeeklyMiniStat(
                     label = "Waist",
-                    value = weekly.latestWaistCm?.let(::formatDouble) ?: "—",
+                    value = weekly.latestWaistCm?.let(::formatSmartNumber) ?: "—",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -559,12 +591,12 @@ private fun WeeklyHistoryCard(
             ) {
                 WeeklyMiniStat(
                     label = "Calories",
-                    value = formatDouble(weekly.averageDailyCalories),
+                    value = formatWholeDouble(weekly.averageDailyCalories),
                     modifier = Modifier.weight(1f)
                 )
                 WeeklyMiniStat(
                     label = "Steps",
-                    value = formatDouble(weekly.averageDailySteps),
+                    value = formatWholeDouble(weekly.averageDailySteps),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -575,7 +607,7 @@ private fun WeeklyHistoryCard(
             ) {
                 WeeklyMiniStat(
                     label = "Fasting",
-                    value = formatDouble(weekly.averageDailyFastingHours),
+                    value = formatSmartNumber(weekly.averageDailyFastingHours),
                     modifier = Modifier.weight(1f)
                 )
                 WeeklyMiniStat(
@@ -632,7 +664,7 @@ private fun MilestoneRow(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = "${formatDouble(milestone.targetWeightKg)} kg",
+                text = "${formatSmartNumber(milestone.targetWeightKg)} kg",
                 style = MaterialTheme.typography.titleMedium
             )
             Text("Date: ${milestone.targetDate}")
@@ -649,7 +681,7 @@ private fun SimpleMilestoneDialog(
     onDelete: (() -> Unit)?
 ) {
     var weight by rememberSaveable(initialMilestone?.id) {
-        mutableStateOf(initialMilestone?.let { formatDouble(it.targetWeightKg) } ?: "")
+        mutableStateOf(initialMilestone?.let { formatSmartNumber(it.targetWeightKg) } ?: "")
     }
     var date by rememberSaveable(initialMilestone?.id) {
         mutableStateOf(initialMilestone?.targetDate ?: "")
@@ -720,7 +752,11 @@ private fun SimpleMilestoneDialog(
                 onDelete?.let {
                     OutlinedButton(
                         onClick = it,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, BrandOrange),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = BrandOrange
+                        )
                     ) {
                         Text("Delete")
                     }
@@ -862,8 +898,8 @@ private fun chartTitle(
         ProgressMetric.WEIGHT -> "Weight"
         ProgressMetric.CALORIES -> "Calories"
         ProgressMetric.STEPS -> "Steps"
-        ProgressMetric.FASTING -> "Fasting hours"
-        ProgressMetric.WORKOUT -> "Workout minutes"
+        ProgressMetric.FASTING -> "Fasting"
+        ProgressMetric.WORKOUT -> "Workout"
         ProgressMetric.DRINK -> "Drink calories"
     }
 
@@ -875,14 +911,35 @@ private fun chartTitle(
     return "$metricLabel — $modeLabel"
 }
 
-private fun formatDelta(change: MetricChange): String? {
+private fun formatMetricValue(
+    metric: ProgressMetric,
+    value: Double
+): String {
+    return when (metric) {
+        ProgressMetric.WEIGHT -> formatSmartNumber(value)
+        ProgressMetric.FASTING -> formatSmartNumber(value)
+        ProgressMetric.CALORIES,
+        ProgressMetric.STEPS,
+        ProgressMetric.WORKOUT,
+        ProgressMetric.DRINK -> formatWholeDouble(value)
+    }
+}
+
+private fun formatDelta(
+    change: MetricChange,
+    wholeOnly: Boolean
+): String? {
     val delta = change.delta ?: return null
-    if (delta == 0.0) return "0.0"
+    val formatted = if (wholeOnly) {
+        formatWholeDouble(abs(delta))
+    } else {
+        formatSmartNumber(abs(delta))
+    }
 
     return when (change.direction) {
-        TrendDirection.BETTER -> "↑ ${formatDouble(abs(delta))}"
-        TrendDirection.WORSE -> "↓ ${formatDouble(abs(delta))}"
-        TrendDirection.SAME -> "0.0"
+        TrendDirection.BETTER -> "↑ $formatted"
+        TrendDirection.WORSE -> "↓ $formatted"
+        TrendDirection.SAME -> "0"
         TrendDirection.NONE -> null
     }
 }
@@ -891,15 +948,24 @@ private fun deltaColor(change: MetricChange): Color? =
     when (change.direction) {
         TrendDirection.BETTER -> BrandTeal
         TrendDirection.WORSE -> BrandOrange
-        TrendDirection.SAME,
+        TrendDirection.SAME -> BrandGray
         TrendDirection.NONE -> null
     }
 
 private fun mondayOf(date: LocalDate): LocalDate =
     date.minusDays((date.dayOfWeek.value - 1).toLong())
 
-private fun formatDouble(value: Double): String =
-    String.format(Locale.US, "%.1f", value)
+private fun formatSmartNumber(value: Double): String {
+    val rounded = value.roundToInt().toDouble()
+    return if (abs(value - rounded) < 0.0001) {
+        rounded.toInt().toString()
+    } else {
+        String.format(Locale.US, "%.1f", value)
+    }
+}
+
+private fun formatWholeDouble(value: Double): String =
+    value.roundToInt().toString()
 
 private fun formatWeekRange(start: String, end: String): String {
     val formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.US)
