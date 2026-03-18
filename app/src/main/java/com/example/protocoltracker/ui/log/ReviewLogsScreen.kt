@@ -1,18 +1,25 @@
 package com.example.protocoltracker.ui.log
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,8 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -41,32 +46,62 @@ import com.example.protocoltracker.data.local.entity.WorkoutIntensity
 import com.example.protocoltracker.data.local.entity.WorkoutType
 import com.example.protocoltracker.ui.common.AppDialogCard
 import com.example.protocoltracker.ui.common.AppPageTitle
+import com.example.protocoltracker.ui.common.SectionCard
+import com.example.protocoltracker.ui.theme.BrandTeal
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.LocalTime
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
-private enum class LogPanel {
-    WEIGHT,
-    FOOD,
-    WAIST,
-    STEPS,
-    WORKOUT
-}
+private sealed class ReviewLogItem {
+    abstract val key: String
+    abstract val sortDate: String
+    abstract val sortTime: String
+    abstract val header: String
+    abstract val details: String
 
-private fun allTimeSlots(): List<String> =
-    (0..23).flatMap { hour ->
-        listOf("%02d:00".format(hour), "%02d:30".format(hour))
+    data class Food(val entry: FoodDrinkEntry) : ReviewLogItem() {
+        override val key: String = "food_${entry.id}"
+        override val sortDate: String = entry.entryDate
+        override val sortTime: String = entry.timeSlot
+        override val header: String = "${entry.entryDate} · Food & drink"
+        override val details: String = buildString {
+            append("${entry.timeSlot} · ${entry.entryType.label()} · ${entry.name} · ${entry.calories} kcal")
+            entry.proteinGrams?.let { append(" · ${it}g protein") }
+        }
     }
 
-private fun currentTime(): String {
-    val now = LocalTime.now()
-    return "%02d:%02d".format(now.hour, now.minute)
-}
+    data class Workout(val entry: WorkoutEntry) : ReviewLogItem() {
+        override val key: String = "workout_${entry.id}"
+        override val sortDate: String = entry.entryDate
+        override val sortTime: String = "12:00"
+        override val header: String = "${entry.entryDate} · Workout"
+        override val details: String = "${entry.workoutType.label()} · ${entry.intensity.label()} · ${entry.minutes} min"
+    }
 
-private fun defaultTimeSlot(): String {
-    val now = LocalTime.now()
-    val minute = if (now.minute < 30) "00" else "30"
-    return "%02d:%s".format(now.hour, minute)
+    data class Weight(val entry: WeightEntry) : ReviewLogItem() {
+        override val key: String = "weight_${entry.id}"
+        override val sortDate: String = entry.entryDate
+        override val sortTime: String = entry.entryTime
+        override val header: String = "${entry.entryDate} · Weight"
+        override val details: String = "${entry.entryTime} · ${formatSmartNumber(entry.weightKg)} kg"
+    }
+
+    data class Waist(val entry: WaistEntry) : ReviewLogItem() {
+        override val key: String = "waist_${entry.id}"
+        override val sortDate: String = entry.entryDate
+        override val sortTime: String = "12:00"
+        override val header: String = "${entry.entryDate} · Waist"
+        override val details: String = "${formatSmartNumber(entry.waistCm)} cm"
+    }
+
+    data class Steps(val entry: DailyStepsEntry) : ReviewLogItem() {
+        override val key: String = "steps_${entry.entryDate}"
+        override val sortDate: String = entry.entryDate
+        override val sortTime: String = "12:00"
+        override val header: String = "${entry.entryDate} · Steps"
+        override val details: String = "${entry.steps} steps"
+    }
 }
 
 private fun FoodDrinkType.label(): String =
@@ -95,38 +130,50 @@ private fun WorkoutIntensity.label(): String =
         WorkoutIntensity.HIGH -> "High"
     }
 
+private fun allTimeSlots(): List<String> =
+    (0..23).flatMap { hour ->
+        listOf("%02d:00".format(hour), "%02d:30".format(hour))
+    }
+
 @Composable
-fun LogScreen(
-    onOpenReviewLogs: () -> Unit
+fun ReviewLogsScreen(
+    onBack: () -> Unit
 ) {
     val app = LocalContext.current.applicationContext as ProtocolTrackerApp
     val repository = app.repository
-    val today = LocalDate.now().toString()
+    val scope = rememberCoroutineScope()
 
-    var activePanel by remember { mutableStateOf<LogPanel?>(null) }
+    val foodEntries by remember { repository.observeFoodDrinkEntries() }.collectAsState(initial = emptyList())
+    val workoutEntries by remember { repository.observeWorkoutEntries() }.collectAsState(initial = emptyList())
+    val weightEntries by remember { repository.observeWeightEntries() }.collectAsState(initial = emptyList())
+    val waistEntries by remember { repository.observeWaistEntries() }.collectAsState(initial = emptyList())
+    val stepsEntries by remember { repository.observeDailySteps() }.collectAsState(initial = emptyList())
 
-    fun closePanel() {
-        activePanel = null
+    var editTarget by remember { mutableStateOf<ReviewLogItem?>(null) }
+
+    fun closeEditTarget() {
+        editTarget = null
     }
-    val foodEntriesToday by remember(today) {
-        repository.observeFoodDrinkEntriesByDate(today)
-    }.collectAsState(initial = emptyList())
 
-    val workoutEntriesToday by remember(today) {
-        repository.observeWorkoutEntriesByDate(today)
-    }.collectAsState(initial = emptyList())
-
-    val weightEntriesToday by remember(today) {
-        repository.observeWeightEntriesByDate(today)
-    }.collectAsState(initial = emptyList())
-
-    val waistEntriesToday by remember(today) {
-        repository.observeWaistEntriesByDate(today)
-    }.collectAsState(initial = emptyList())
-
-    val stepsEntryToday by remember(today) {
-        repository.observeDailyStepsByDate(today)
-    }.collectAsState(initial = null)
+    val reviewItems = remember(
+        foodEntries,
+        workoutEntries,
+        weightEntries,
+        waistEntries,
+        stepsEntries
+    ) {
+        buildList {
+            addAll(foodEntries.map { ReviewLogItem.Food(it) })
+            addAll(workoutEntries.map { ReviewLogItem.Workout(it) })
+            addAll(weightEntries.map { ReviewLogItem.Weight(it) })
+            addAll(waistEntries.map { ReviewLogItem.Waist(it) })
+            addAll(stepsEntries.map { ReviewLogItem.Steps(it) })
+        }.sortedWith(
+            compareByDescending<ReviewLogItem> { it.sortDate }
+                .thenByDescending { it.sortTime }
+                .thenByDescending { it.key }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -136,108 +183,113 @@ fun LogScreen(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
                 modifier = Modifier.weight(1f)
             ) {
                 AppPageTitle(
-                    title = "Log",
-                    subtitle = "Choose what to log."
+                    title = "Review logs",
+                    subtitle = "Newest first. Edit or delete any entry."
                 )
             }
 
             OutlinedButton(
-                onClick = onOpenReviewLogs
+                onClick = onBack
             ) {
-                Text("Review logs")
+                Text("Back")
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            BrandLogButton(
-                label = "Weight",
-                containerColor = MaterialTheme.colorScheme.primary,
-                onClick = { activePanel = LogPanel.WEIGHT },
-                modifier = Modifier.weight(1f)
-            )
-            BrandLogButton(
-                label = "Food & drink",
-                containerColor = MaterialTheme.colorScheme.secondary,
-                onClick = { activePanel = LogPanel.FOOD },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            BrandLogButton(
-                label = "Waist",
-                containerColor = MaterialTheme.colorScheme.secondary,
-                onClick = { activePanel = LogPanel.WAIST },
-                modifier = Modifier.weight(1f)
-            )
-            BrandLogButton(
-                label = "Steps",
-                containerColor = MaterialTheme.colorScheme.primary,
-                onClick = { activePanel = LogPanel.STEPS },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            BrandLogButton(
-                label = "Workout",
-                containerColor = MaterialTheme.colorScheme.primary,
-                onClick = { activePanel = LogPanel.WORKOUT },
-                modifier = Modifier.fillMaxSize()
-            )
+        if (reviewItems.isEmpty()) {
+            SectionCard {
+                Text("No logs yet.")
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(
+                    items = reviewItems,
+                    key = { it.key }
+                ) { item ->
+                    ReviewLogRow(
+                        item = item,
+                        onEdit = { editTarget = item },
+                        onDelete = {
+                            scope.launch {
+                                when (item) {
+                                    is ReviewLogItem.Food -> repository.deleteFoodDrinkEntry(item.entry)
+                                    is ReviewLogItem.Workout -> repository.deleteWorkoutEntry(item.entry)
+                                    is ReviewLogItem.Weight -> repository.deleteWeightEntry(item.entry)
+                                    is ReviewLogItem.Waist -> repository.deleteWaistEntry(item.entry)
+                                    is ReviewLogItem.Steps -> repository.deleteDailySteps(item.entry)
+                                }
+                            }
+                        }
+                    )
+                }
+            }
         }
     }
 
-    when (activePanel) {
-        LogPanel.FOOD -> FoodDialog(
-            today = today,
-            foodEntriesToday = foodEntriesToday,
-            onDismiss = ::closePanel
+    when (val target = editTarget) {
+        is ReviewLogItem.Food -> EditFoodDialog(
+            entry = target.entry,
+            onDismiss = ::closeEditTarget,
+            onSave = { updated ->
+                scope.launch {
+                    repository.updateFoodDrinkEntry(updated)
+                    closeEditTarget()
+                }
+            }
         )
 
-        LogPanel.WORKOUT -> WorkoutDialog(
-            today = today,
-            workoutEntriesToday = workoutEntriesToday,
-            onDismiss = ::closePanel
+        is ReviewLogItem.Workout -> EditWorkoutDialog(
+            entry = target.entry,
+            onDismiss = ::closeEditTarget,
+            onSave = { updated ->
+                scope.launch {
+                    repository.updateWorkoutEntry(updated)
+                    closeEditTarget()
+                }
+            }
         )
 
-        LogPanel.WEIGHT -> WeightDialog(
-            today = today,
-            weightEntriesToday = weightEntriesToday,
-            onDismiss = ::closePanel
+        is ReviewLogItem.Weight -> EditWeightDialog(
+            entry = target.entry,
+            onDismiss = ::closeEditTarget,
+            onSave = { updated ->
+                scope.launch {
+                    repository.updateWeightEntry(updated)
+                    closeEditTarget()
+                }
+            }
         )
 
-        LogPanel.WAIST -> WaistDialog(
-            today = today,
-            waistEntriesToday = waistEntriesToday,
-            onDismiss = ::closePanel
+        is ReviewLogItem.Waist -> EditWaistDialog(
+            entry = target.entry,
+            onDismiss = ::closeEditTarget,
+            onSave = { updated ->
+                scope.launch {
+                    repository.updateWaistEntry(updated)
+                    closeEditTarget()
+                }
+            }
         )
 
-        LogPanel.STEPS -> StepsDialog(
-            today = today,
-            stepsEntryToday = stepsEntryToday,
-            onDismiss = ::closePanel
+        is ReviewLogItem.Steps -> EditStepsDialog(
+            entry = target.entry,
+            onDismiss = ::closeEditTarget,
+            onSave = { updated ->
+                scope.launch {
+                    if (updated.entryDate != target.entry.entryDate) {
+                        repository.deleteDailySteps(target.entry)
+                    }
+                    repository.upsertDailySteps(updated)
+                    closeEditTarget()
+                }
+            }
         )
 
         null -> Unit
@@ -245,27 +297,86 @@ fun LogScreen(
 }
 
 @Composable
-private fun FoodDialog(
-    today: String,
-    foodEntriesToday: List<FoodDrinkEntry>,
-    onDismiss: () -> Unit
+private fun ReviewLogRow(
+    item: ReviewLogItem,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
-    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
-    val repository = app.repository
-    val scope = rememberCoroutineScope()
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = item.header,
+                style = MaterialTheme.typography.labelLarge
+            )
 
-    var entryDate by remember { mutableStateOf(today) }
-    var timeSlot by remember { mutableStateOf(defaultTimeSlot()) }
-    var selectedEntryType by remember { mutableStateOf(FoodDrinkType.MEAL.name) }
-    var name by remember { mutableStateOf("") }
-    var calories by remember { mutableStateOf("") }
-    var proteinGrams by remember { mutableStateOf("") }
-    var errorText by remember { mutableStateOf<String?>(null) }
-    var timeMenuExpanded by remember { mutableStateOf(false) }
-    var typeMenuExpanded by remember { mutableStateOf(false) }
+            Text(
+                text = item.details,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onEdit,
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, BrandTeal),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = BrandTeal
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "Edit"
+                    )
+                    Text(" Edit")
+                }
+
+                OutlinedButton(
+                    onClick = onDelete,
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Delete"
+                    )
+                    Text(" Delete")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditFoodDialog(
+    entry: FoodDrinkEntry,
+    onDismiss: () -> Unit,
+    onSave: (FoodDrinkEntry) -> Unit
+) {
+    var entryDate by remember(entry.id) { mutableStateOf(entry.entryDate) }
+    var timeSlot by remember(entry.id) { mutableStateOf(entry.timeSlot) }
+    var selectedEntryType by remember(entry.id) { mutableStateOf(entry.entryType.name) }
+    var name by remember(entry.id) { mutableStateOf(entry.name) }
+    var calories by remember(entry.id) { mutableStateOf(entry.calories.toString()) }
+    var proteinGrams by remember(entry.id) { mutableStateOf(entry.proteinGrams?.toString() ?: "") }
+    var errorText by remember(entry.id) { mutableStateOf<String?>(null) }
+    var timeMenuExpanded by remember(entry.id) { mutableStateOf(false) }
+    var typeMenuExpanded by remember(entry.id) { mutableStateOf(false) }
 
     AppDialogCard(
-        title = "Log food or drink",
+        title = "Edit food or drink",
         onDismiss = onDismiss
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -365,66 +476,45 @@ private fun FoodDialog(
                         entryDate.isBlank() -> errorText = "Enter a date."
                         trimmedName.isBlank() -> errorText = "Enter a name."
                         calorieValue == null -> errorText = "Calories must be a whole number."
-                        proteinGrams.isNotBlank() && proteinValue == null ->
-                            errorText = "Protein must be a whole number."
+                        proteinGrams.isNotBlank() && proteinValue == null -> errorText = "Protein must be a whole number."
                         else -> {
-                            scope.launch {
-                                repository.insertFoodDrinkEntry(
-                                    FoodDrinkEntry(
-                                        entryDate = entryDate,
-                                        timeSlot = timeSlot,
-                                        entryType = FoodDrinkType.valueOf(selectedEntryType),
-                                        name = trimmedName,
-                                        calories = calorieValue,
-                                        proteinGrams = proteinValue,
-                                        templateId = null
-                                    )
+                            onSave(
+                                entry.copy(
+                                    entryDate = entryDate,
+                                    timeSlot = timeSlot,
+                                    entryType = FoodDrinkType.valueOf(selectedEntryType),
+                                    name = trimmedName,
+                                    calories = calorieValue,
+                                    proteinGrams = proteinValue
                                 )
-                                onDismiss()
-                            }
+                            )
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save")
-            }
-
-            HorizontalDivider()
-
-            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-            if (foodEntriesToday.isEmpty()) {
-                Text("No logs yet.")
-            } else {
-                foodEntriesToday.forEach { entry ->
-                    FoodEntryRow(entry)
-                }
+                Text("Save changes")
             }
         }
     }
 }
 
 @Composable
-private fun WorkoutDialog(
-    today: String,
-    workoutEntriesToday: List<WorkoutEntry>,
-    onDismiss: () -> Unit
+private fun EditWorkoutDialog(
+    entry: WorkoutEntry,
+    onDismiss: () -> Unit,
+    onSave: (WorkoutEntry) -> Unit
 ) {
-    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
-    val repository = app.repository
-    val scope = rememberCoroutineScope()
-
-    var workoutDate by remember { mutableStateOf(today) }
-    var workoutType by remember { mutableStateOf(WorkoutType.STRENGTH.name) }
-    var workoutIntensity by remember { mutableStateOf(WorkoutIntensity.MID.name) }
-    var workoutMinutes by remember { mutableStateOf("") }
-    var workoutTypeMenuExpanded by remember { mutableStateOf(false) }
-    var workoutIntensityMenuExpanded by remember { mutableStateOf(false) }
-    var errorText by remember { mutableStateOf<String?>(null) }
+    var workoutDate by remember(entry.id) { mutableStateOf(entry.entryDate) }
+    var workoutType by remember(entry.id) { mutableStateOf(entry.workoutType.name) }
+    var workoutIntensity by remember(entry.id) { mutableStateOf(entry.intensity.name) }
+    var workoutMinutes by remember(entry.id) { mutableStateOf(entry.minutes.toString()) }
+    var workoutTypeMenuExpanded by remember(entry.id) { mutableStateOf(false) }
+    var workoutIntensityMenuExpanded by remember(entry.id) { mutableStateOf(false) }
+    var errorText by remember(entry.id) { mutableStateOf<String?>(null) }
 
     AppDialogCard(
-        title = "Log your workout",
+        title = "Edit workout",
         onDismiss = onDismiss
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -505,56 +595,37 @@ private fun WorkoutDialog(
                         workoutDate.isBlank() -> errorText = "Enter a date."
                         minutesValue == null -> errorText = "Minutes must be a whole number."
                         else -> {
-                            scope.launch {
-                                repository.insertWorkoutEntry(
-                                    WorkoutEntry(
-                                        entryDate = workoutDate,
-                                        workoutType = WorkoutType.valueOf(workoutType),
-                                        intensity = WorkoutIntensity.valueOf(workoutIntensity),
-                                        minutes = minutesValue
-                                    )
+                            onSave(
+                                entry.copy(
+                                    entryDate = workoutDate,
+                                    workoutType = WorkoutType.valueOf(workoutType),
+                                    intensity = WorkoutIntensity.valueOf(workoutIntensity),
+                                    minutes = minutesValue
                                 )
-                                onDismiss()
-                            }
+                            )
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save")
-            }
-
-            HorizontalDivider()
-
-            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-            if (workoutEntriesToday.isEmpty()) {
-                Text("No logs yet.")
-            } else {
-                workoutEntriesToday.forEach { entry ->
-                    WorkoutEntryRow(entry)
-                }
+                Text("Save changes")
             }
         }
     }
 }
 
 @Composable
-private fun WeightDialog(
-    today: String,
-    weightEntriesToday: List<WeightEntry>,
-    onDismiss: () -> Unit
+private fun EditWeightDialog(
+    entry: WeightEntry,
+    onDismiss: () -> Unit,
+    onSave: (WeightEntry) -> Unit
 ) {
-    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
-    val repository = app.repository
-    val scope = rememberCoroutineScope()
-
-    var weightDate by remember { mutableStateOf(today) }
-    var weightKg by remember { mutableStateOf("") }
-    var errorText by remember { mutableStateOf<String?>(null) }
+    var weightDate by remember(entry.id) { mutableStateOf(entry.entryDate) }
+    var weightKg by remember(entry.id) { mutableStateOf(formatSmartNumber(entry.weightKg)) }
+    var errorText by remember(entry.id) { mutableStateOf<String?>(null) }
 
     AppDialogCard(
-        title = "Log your weight",
+        title = "Edit weight",
         onDismiss = onDismiss
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -587,55 +658,35 @@ private fun WeightDialog(
                         weightDate.isBlank() -> errorText = "Enter a date."
                         weightValue == null -> errorText = "Weight must be a number."
                         else -> {
-                            scope.launch {
-                                repository.insertWeightEntry(
-                                    WeightEntry(
-                                        entryDate = weightDate,
-                                        entryTime = currentTime(),
-                                        weightKg = weightValue
-                                    )
+                            onSave(
+                                entry.copy(
+                                    entryDate = weightDate,
+                                    weightKg = weightValue
                                 )
-                                onDismiss()
-                            }
+                            )
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save")
-            }
-
-            HorizontalDivider()
-
-            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-            if (weightEntriesToday.isEmpty()) {
-                Text("No logs yet.")
-            } else {
-                weightEntriesToday.forEach { entry ->
-                    WeightEntryRow(entry)
-                }
+                Text("Save changes")
             }
         }
     }
 }
 
 @Composable
-private fun WaistDialog(
-    today: String,
-    waistEntriesToday: List<WaistEntry>,
-    onDismiss: () -> Unit
+private fun EditWaistDialog(
+    entry: WaistEntry,
+    onDismiss: () -> Unit,
+    onSave: (WaistEntry) -> Unit
 ) {
-    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
-    val repository = app.repository
-    val scope = rememberCoroutineScope()
-
-    var waistDate by remember { mutableStateOf(today) }
-    var waistCm by remember { mutableStateOf("") }
-    var errorText by remember { mutableStateOf<String?>(null) }
+    var waistDate by remember(entry.id) { mutableStateOf(entry.entryDate) }
+    var waistCm by remember(entry.id) { mutableStateOf(formatSmartNumber(entry.waistCm)) }
+    var errorText by remember(entry.id) { mutableStateOf<String?>(null) }
 
     AppDialogCard(
-        title = "Log your waist",
+        title = "Edit waist",
         onDismiss = onDismiss
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -668,54 +719,35 @@ private fun WaistDialog(
                         waistDate.isBlank() -> errorText = "Enter a date."
                         waistValue == null -> errorText = "Waist must be a number."
                         else -> {
-                            scope.launch {
-                                repository.insertWaistEntry(
-                                    WaistEntry(
-                                        entryDate = waistDate,
-                                        waistCm = waistValue
-                                    )
+                            onSave(
+                                entry.copy(
+                                    entryDate = waistDate,
+                                    waistCm = waistValue
                                 )
-                                onDismiss()
-                            }
+                            )
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save")
-            }
-
-            HorizontalDivider()
-
-            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-            if (waistEntriesToday.isEmpty()) {
-                Text("No logs yet.")
-            } else {
-                waistEntriesToday.forEach { entry ->
-                    WaistEntryRow(entry)
-                }
+                Text("Save changes")
             }
         }
     }
 }
 
 @Composable
-private fun StepsDialog(
-    today: String,
-    stepsEntryToday: DailyStepsEntry?,
-    onDismiss: () -> Unit
+private fun EditStepsDialog(
+    entry: DailyStepsEntry,
+    onDismiss: () -> Unit,
+    onSave: (DailyStepsEntry) -> Unit
 ) {
-    val app = LocalContext.current.applicationContext as ProtocolTrackerApp
-    val repository = app.repository
-    val scope = rememberCoroutineScope()
-
-    var stepsDate by remember { mutableStateOf(today) }
-    var stepsValue by remember { mutableStateOf("") }
-    var errorText by remember { mutableStateOf<String?>(null) }
+    var stepsDate by remember(entry.entryDate) { mutableStateOf(entry.entryDate) }
+    var stepsValue by remember(entry.entryDate) { mutableStateOf(entry.steps.toString()) }
+    var errorText by remember(entry.entryDate) { mutableStateOf<String?>(null) }
 
     AppDialogCard(
-        title = "Log your steps",
+        title = "Edit steps",
         onDismiss = onDismiss
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -748,113 +780,28 @@ private fun StepsDialog(
                         stepsDate.isBlank() -> errorText = "Enter a date."
                         parsedSteps == null -> errorText = "Steps must be a whole number."
                         else -> {
-                            scope.launch {
-                                repository.upsertDailySteps(
-                                    DailyStepsEntry(
-                                        entryDate = stepsDate,
-                                        steps = parsedSteps
-                                    )
+                            onSave(
+                                DailyStepsEntry(
+                                    entryDate = stepsDate,
+                                    steps = parsedSteps
                                 )
-                                onDismiss()
-                            }
+                            )
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save")
-            }
-
-            HorizontalDivider()
-
-            Text("Today's logs", style = MaterialTheme.typography.titleSmall)
-
-            if (stepsEntryToday == null) {
-                Text("No logs yet.")
-            } else {
-                Text("Steps: ${stepsEntryToday.steps}")
+                Text("Save changes")
             }
         }
     }
 }
 
-@Composable
-private fun BrandLogButton(
-    label: String,
-    containerColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.fillMaxSize(),
-        shape = RoundedCornerShape(24.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = containerColor,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        )
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium
-        )
-    }
-}
-
-@Composable
-private fun FoodEntryRow(entry: FoodDrinkEntry) {
-    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                "${entry.timeSlot} • ${entry.entryType.label()}",
-                style = MaterialTheme.typography.labelLarge
-            )
-            Text(entry.name, style = MaterialTheme.typography.titleMedium)
-            Text("Calories: ${entry.calories}")
-            entry.proteinGrams?.let { Text("Protein: $it g") }
-        }
-    }
-}
-
-@Composable
-private fun WorkoutEntryRow(entry: WorkoutEntry) {
-    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(entry.workoutType.label(), style = MaterialTheme.typography.titleMedium)
-            Text("Intensity: ${entry.intensity.label()}")
-            Text("Minutes: ${entry.minutes}")
-        }
-    }
-}
-
-@Composable
-private fun WeightEntryRow(entry: WeightEntry) {
-    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(entry.entryDate, style = MaterialTheme.typography.labelLarge)
-            Text("${entry.weightKg} kg", style = MaterialTheme.typography.titleMedium)
-        }
-    }
-}
-
-@Composable
-private fun WaistEntryRow(entry: WaistEntry) {
-    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(entry.entryDate, style = MaterialTheme.typography.labelLarge)
-            Text("${entry.waistCm} cm", style = MaterialTheme.typography.titleMedium)
-        }
+private fun formatSmartNumber(value: Double): String {
+    val rounded = value.roundToInt().toDouble()
+    return if (abs(value - rounded) < 0.0001) {
+        rounded.toInt().toString()
+    } else {
+        String.format(Locale.US, "%.1f", value)
     }
 }

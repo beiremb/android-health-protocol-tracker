@@ -9,9 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -21,17 +21,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.protocoltracker.ui.theme.ProtocolTrackerTheme
-import com.example.protocoltracker.ui.log.LogScreen
 import com.example.protocoltracker.ui.home.HomeScreen
+import com.example.protocoltracker.ui.log.LogScreen
+import com.example.protocoltracker.ui.log.ReviewLogsScreen
 import com.example.protocoltracker.ui.progress.ProgressScreen
 import com.example.protocoltracker.ui.settings.SettingsScreen
+import com.example.protocoltracker.ui.theme.ProtocolTrackerTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +51,7 @@ sealed class AppScreen(
 ) {
     data object Home : AppScreen("home", "Home")
     data object Log : AppScreen("log", "Log")
+    data object ReviewLogs : AppScreen("review_logs", "Review logs")
     data object Progress : AppScreen("progress", "Progress")
     data object Settings : AppScreen("settings", "Settings")
 }
@@ -72,23 +72,29 @@ fun ProtocolTrackerRoot() {
         bottomBar = {
             NavigationBar {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
+                val currentRoute = navBackStackEntry?.destination?.route
 
                 screens.forEach { screen ->
                     val icon = when (screen) {
                         AppScreen.Home -> Icons.Filled.Home
                         AppScreen.Log -> Icons.AutoMirrored.Filled.List
+                        AppScreen.ReviewLogs -> Icons.AutoMirrored.Filled.List
                         AppScreen.Progress -> Icons.AutoMirrored.Filled.ShowChart
                         AppScreen.Settings -> Icons.Filled.Settings
                     }
 
+                    val selected = when (screen) {
+                        AppScreen.Log -> {
+                            currentRoute == AppScreen.Log.route || currentRoute == AppScreen.ReviewLogs.route
+                        }
+
+                        else -> currentRoute == screen.route
+                    }
+
                     NavigationBarItem(
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = selected,
                         onClick = {
                             navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
                                 launchSingleTop = true
                                 restoreState = true
                             }
@@ -119,12 +125,27 @@ fun ProtocolTrackerRoot() {
                     }
                 )
             }
+
             composable(AppScreen.Log.route) {
-                LogScreen()
+                LogScreen(
+                    onOpenReviewLogs = {
+                        navController.navigate(AppScreen.ReviewLogs.route) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
+
+            composable(AppScreen.ReviewLogs.route) {
+                ReviewLogsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             composable(AppScreen.Progress.route) {
                 ProgressScreen()
             }
+
             composable(AppScreen.Settings.route) {
                 SettingsScreen()
             }
